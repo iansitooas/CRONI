@@ -212,7 +212,7 @@ fn ensure_github_download_url(raw: &str) -> Result<()> {
 }
 
 #[cfg(target_os = "windows")]
-fn http_get(raw: &str, max_size: usize) -> Result<Vec<u8>> {
+pub(crate) fn http_get(raw: &str, max_size: usize) -> Result<Vec<u8>> {
     use windows::{
         core::{HSTRING, PCWSTR},
         Win32::Networking::WinHttp::{
@@ -324,7 +324,7 @@ fn http_get(raw: &str, max_size: usize) -> Result<Vec<u8>> {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn http_get(_raw: &str, _max_size: usize) -> Result<Vec<u8>> {
+pub(crate) fn http_get(_raw: &str, _max_size: usize) -> Result<Vec<u8>> {
     bail!("las actualizaciones automáticas sólo están disponibles en Windows")
 }
 

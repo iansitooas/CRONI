@@ -29,3 +29,11 @@ garantizar que todos los sitios o descargas sean seguros.
 
 No introduzcas contraseñas ni descargues archivos en páginas sospechosas.
 Comprueba siempre el dominio que aparece en la barra de direcciones.
+INSTALACION RAPIDA
+==================
+
+CRONI usa el WebView2 incluido normalmente en Windows 10/11. Si CRONI.exe no abre,
+haz clic derecho en INSTALAR_RECURSOS.ps1, elige "Ejecutar con PowerShell", o abre
+PowerShell en esta carpeta y ejecuta:
+
+  powershell -ExecutionPolicy Bypass -File .\INSTALAR_RECURSOS.ps1 -RuntimeOnly

@@ -71,6 +71,7 @@ jobs:
           Copy-Item target\release\croni.exe dist\CRONI.exe
           Copy-Item target\release\croni.exe dist\CRONI_PORTABLE\CRONI.exe
           Copy-Item packaging\LEEME.txt dist\CRONI_PORTABLE\LEEME.txt
+          Copy-Item scripts\setup-windows.ps1 dist\CRONI_PORTABLE\INSTALAR_RECURSOS.ps1
           $hash = (Get-FileHash dist\CRONI.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           Set-Content -Path dist\CRONI.exe.sha256 -Value "$hash  CRONI.exe" -Encoding ascii
           Compress-Archive -Path dist\CRONI_PORTABLE -DestinationPath dist\CRONI_PORTABLE.zip -CompressionLevel Optimal

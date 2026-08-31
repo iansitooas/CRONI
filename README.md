@@ -12,9 +12,13 @@ CRONI es un navegador de escritorio enfocado en reducir RAM. Está escrito en Ru
 - Icono propio de CRONI en la ventana, la barra de tareas y el ejecutable de Windows.
 - Actualización en segundo plano desde GitHub Releases, verificación SHA-256 y reemplazo del ejecutable al reiniciar.
 - Restauración de la sesión anterior.
-- Pestañas inactivas en nivel de memoria `Low` de WebView2 y descarte total tras 1, 5, 15, 30 o 60 minutos.
+- Modo ultraligero predeterminado: al cambiar de pestaña, destruye inmediatamente el WebView anterior y conserva su URL para restaurarlo al volver.
+- Modo configurable con pestañas inactivas en nivel de memoria `Low` de WebView2 y descarte tras 1, 5, 15, 30 o 60 minutos.
 - Descarte inmediato de todas las pestañas inactivas si el sistema emite una alerta de memoria.
-- Bloqueador nativo que corta solicitudes de anuncios y rastreadores antes de descargarlas, complementado con limpieza ligera de elementos publicitarios en la página.
+- Bloqueador nativo basado en `adblock-rust`, el motor que usa Brave, con EasyList, EasyPrivacy y reglas oficiales de Brave actualizadas en segundo plano.
+- Contador de solicitudes bloqueadas, protección activable por sitio y limpieza cosmética ligera.
+- Medidor de RAM que suma CRONI y los procesos WebView2 que utiliza.
+- Pausa de audio y video al navegar o dejar CRONI en segundo plano, además de un modo de movimiento reducido.
 - Navegaciones limitadas a HTTP/HTTPS y aislamiento de páginas web respecto del canal nativo de la aplicación.
 - Extensiones de WebView2 deshabilitadas explícitamente.
 - Espera dirigida por eventos: la aplicación no mantiene un bucle de sondeo activo.
@@ -26,11 +30,20 @@ Ventana nativa (winit)
 ├── WebView de interfaz (HTML/CSS embebido, sin servidor local)
 └── WebViews de contenido, uno por pestaña caliente
     ├── activa: visible + MemoryUsageLevel::Normal
-    ├── inactiva reciente: oculta + MemoryUsageLevel::Low
-    └── inactiva vencida: WebView destruido; sólo conserva URL/título
+    └── inactiva: WebView destruido; sólo conserva URL/título
 ```
 
 Todas las pestañas comparten un `WebContext`, por lo que cookies, inicios de sesión y caché en disco se reutilizan. La interfaz envía comandos JSON pequeños a Rust; el estado vuelve mediante una única llamada JavaScript. Consulta [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para los detalles y límites deliberados.
+
+## Instalación rápida en Windows
+
+El ZIP publicado incluye `INSTALAR_RECURSOS.ps1`. Para preparar solamente lo necesario para ejecutar CRONI, abre PowerShell dentro de la carpeta descomprimida y usa:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\INSTALAR_RECURSOS.ps1 -RuntimeOnly
+```
+
+Windows 10/11 normalmente ya incluye WebView2 y, en ese caso, puedes abrir `CRONI.exe` directamente.
 
 ## Compilar en Windows
 
@@ -40,7 +53,13 @@ Requisitos:
 2. [Rust estable con MSVC](https://www.rust-lang.org/tools/install).
 3. Visual Studio Build Tools con la carga de trabajo **Desktop development with C++**.
 
-Desde PowerShell, en este directorio:
+Después de clonar el repositorio, este único comando instala WebView2, Rust y Visual Studio Build Tools con C++ mediante `winget`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows.ps1
+```
+
+Cierra y abre PowerShell para actualizar el `PATH`. Después, en este directorio:
 
 ```powershell
 cargo test
@@ -63,11 +82,11 @@ Esta entrega es **Windows-first**. Antes de ejecutarla en Linux hay que añadir 
 
 ## Configuración
 
-El botón **⇩** abre las descargas y el menú **☰** muestra marcadores, estado de actualización y tiempo de descarte. `home_url` y `search_url` se pueden cambiar en `%LOCALAPPDATA%\CRONI\config.json` después del primer cierre. La plantilla de búsqueda debe contener `{query}`.
+El botón **⇩** abre las descargas. El escudo muestra el bloqueo por sitio y el número de solicitudes detenidas. El menú **☰** contiene marcadores, estado de actualización, modo ultraligero y movimiento reducido. `home_url` y `search_url` se pueden cambiar en `%LOCALAPPDATA%\CRONI\config.json` después del primer cierre. La plantilla de búsqueda debe contener `{query}`.
 
 ## Alcance realista
 
-WebView2 ejecuta aplicaciones modernas como Gmail, YouTube y redes sociales con el mismo motor web que Edge, pero esto no convierte a CRONI en un reemplazo de seguridad completo para un navegador comercial. Algunos proveedores pueden bloquear OAuth en WebViews embebidos por política propia. El filtro integrado es intencionalmente pequeño: evita el coste de memoria de una lista masiva, pero no pretende igualar a uBlock Origin. En Windows, las solicitudes iniciadas por JavaScript se bloquean desde el script de inicialización; un bloqueador de todos los subrecursos anterior a red requeriría conectar directamente `WebResourceRequested` de WebView2 y mantener reglas actualizables.
+WebView2 ejecuta aplicaciones modernas como Gmail, YouTube y redes sociales con el mismo motor web que Edge, pero esto no convierte a CRONI en un reemplazo de seguridad completo para un navegador comercial. Algunos proveedores pueden bloquear OAuth en WebViews embebidos por política propia. El bloqueador usa el mismo motor de reglas que Brave e intercepta los subrecursos antes de red, pero CRONI no incorpora todas las protecciones, listas regionales, excepciones ni revisiones de compatibilidad de Brave. Si una página falla, el escudo permite desactivar el filtrado solamente en ese sitio.
 
 ## Actualizaciones y aviso de Windows
 

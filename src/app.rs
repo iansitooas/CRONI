@@ -11,6 +11,7 @@ use anyhow::{Context, Result};
 use serde_json::Value;
 use std::{
     path::PathBuf,
+    sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
 use winit::{
@@ -76,6 +77,7 @@ pub enum UserEvent {
     },
     UpdateCurrent,
     UpdateFailed(String),
+    MemoryMeasured(u64),
 }
 
 struct Tab {
@@ -99,6 +101,8 @@ pub struct BrowserApp {
     window_is_focused: bool,
     downloads_panel_open: bool,
     downloads: Vec<DownloadItem>,
+    blocker: blocker::BlockerManager,
+    memory_bytes: u64,
     update_status: String,
     update_version: Option<String>,
     update_path: Option<PathBuf>,
@@ -112,6 +116,7 @@ pub struct BrowserApp {
 impl BrowserApp {
     pub fn new(proxy: EventLoopProxy<UserEvent>) -> Result<Self> {
         let config = AppConfig::load();
+        let blocker = blocker::BlockerManager::new(&config.adblock_disabled_hosts);
         let external_url = std::env::args()
             .nth(1)
             .filter(|url| blocker::is_navigation_allowed(url));
@@ -160,6 +165,8 @@ impl BrowserApp {
             window_is_focused: true,
             downloads_panel_open: false,
             downloads,
+            blocker,
+            memory_bytes: 0,
             update_status: if updater::is_configured() {
                 "checking".into()
             } else {
@@ -208,6 +215,8 @@ impl BrowserApp {
         self.ensure_active_view()?;
         self.resize_views();
         self.render_chrome();
+        self.blocker.start_filter_update();
+        start_memory_monitor(self.proxy.clone());
         updater::start_update_check(self.proxy.clone());
         Ok(())
     }
@@ -224,6 +233,8 @@ impl BrowserApp {
         let location_proxy = self.proxy.clone();
         let title_proxy = self.proxy.clone();
         let popup_proxy = self.proxy.clone();
+        let page_url = Arc::new(RwLock::new(url.clone()));
+        let page_url_for_events = page_url.clone();
 
         let builder = WebViewBuilder::new_with_web_context(&mut self.context)
             .with_url(&url)
@@ -239,6 +250,9 @@ impl BrowserApp {
                 blocker::is_navigation_allowed(&target) && !blocker::is_blocked_url(&target)
             })
             .with_on_page_load_handler(move |event, url| {
+                *page_url_for_events
+                    .write()
+                    .unwrap_or_else(|lock| lock.into_inner()) = url.clone();
                 let _ = location_proxy.send_event(UserEvent::PageLoadChanged {
                     tab_id,
                     url,
@@ -253,6 +267,12 @@ impl BrowserApp {
                 NewWindowResponse::Deny
             });
 
+        let builder = if self.config.reduce_motion {
+            builder.with_initialization_script(blocker::PERFORMANCE_SCRIPT)
+        } else {
+            builder
+        };
+
         #[cfg(target_os = "windows")]
         let builder = builder
             .with_browser_extensions_enabled(false)
@@ -261,7 +281,7 @@ impl BrowserApp {
         let view = builder
             .build_as_child(window)
             .with_context(|| format!("no se pudo abrir {url}"))?;
-        blocker::attach_native_protections(&view)
+        blocker::attach_native_protections(&view, self.blocker.clone(), page_url)
             .context("no se pudieron activar las protecciones de red")?;
         #[cfg(target_os = "windows")]
         downloads::attach_download_manager(
@@ -308,6 +328,9 @@ impl BrowserApp {
                 set_memory_level(view, false);
             }
             self.tabs[self.active].last_active = now;
+            if self.config.ultra_light_mode {
+                self.tabs[self.active].view = None;
+            }
             self.active = target;
         }
         self.tabs[self.active].last_active = now;
@@ -411,6 +434,44 @@ impl BrowserApp {
                 if let Some(minutes) = command.get("minutes").and_then(Value::as_u64) {
                     self.config.discard_after_minutes = minutes.clamp(1, 120);
                     self.persist_session();
+                    self.render_chrome();
+                }
+            }
+            "toggle_ultra_light" => {
+                self.config.ultra_light_mode = !self.config.ultra_light_mode;
+                if self.config.ultra_light_mode {
+                    self.discard_expired_tabs(true);
+                }
+                self.persist_session();
+                self.render_chrome();
+            }
+            "toggle_reduce_motion" => {
+                self.config.reduce_motion = !self.config.reduce_motion;
+                self.persist_session();
+                if let Some(view) = self.tabs[self.active].view.as_ref() {
+                    let _ = view.reload();
+                }
+                self.render_chrome();
+            }
+            "toggle_background_pause" => {
+                self.config.pause_media_when_unfocused = !self.config.pause_media_when_unfocused;
+                self.persist_session();
+                self.render_chrome();
+            }
+            "toggle_adblock" => {
+                let url = self.tabs[self.active].url.clone();
+                if let Some((host, enabled)) = self.blocker.toggle_for_url(&url) {
+                    if enabled {
+                        self.config
+                            .adblock_disabled_hosts
+                            .retain(|item| item != &host);
+                    } else if !self.config.adblock_disabled_hosts.contains(&host) {
+                        self.config.adblock_disabled_hosts.push(host);
+                    }
+                    self.persist_session();
+                    if let Some(view) = self.tabs[self.active].view.as_ref() {
+                        let _ = view.reload();
+                    }
                     self.render_chrome();
                 }
             }
@@ -647,6 +708,13 @@ impl BrowserApp {
                 .map(Window::is_maximized)
                 .unwrap_or(false),
             loading: active.loading,
+            memory_bytes: self.memory_bytes,
+            blocked_count: self.blocker.blocked_count(),
+            adblock_enabled: self.blocker.is_enabled_for_url(&active.url),
+            adblock_status: self.blocker.status(),
+            ultra_light_mode: self.config.ultra_light_mode,
+            reduce_motion: self.config.reduce_motion,
+            pause_media_when_unfocused: self.config.pause_media_when_unfocused,
             app_version: updater::APP_VERSION,
             update_configured: updater::is_configured(),
             update_status: &self.update_status,
@@ -725,6 +793,9 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
                 for (index, tab) in self.tabs.iter().enumerate() {
                     if let Some(view) = tab.view.as_ref() {
                         set_memory_level(view, focused && index == self.active);
+                        if !focused && self.config.pause_media_when_unfocused {
+                            let _ = view.evaluate_script(blocker::PAUSE_MEDIA_SCRIPT);
+                        }
                     }
                 }
             }
@@ -741,10 +812,18 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
                 loading,
             } => {
                 if let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == tab_id) {
-                    tab.url = url;
+                    tab.url = url.clone();
                     tab.loading = loading;
                     self.persist_session();
                     self.render_chrome();
+                }
+                if !loading {
+                    let script = self.blocker.cosmetic_script(&url);
+                    if let Some(tab) = self.tabs.iter().find(|tab| tab.id == tab_id) {
+                        if let (Some(view), Some(script)) = (tab.view.as_ref(), script) {
+                            let _ = view.evaluate_script(&script);
+                        }
+                    }
                 }
             }
             UserEvent::TitleChanged { tab_id, title } => {
@@ -821,6 +900,10 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
                 self.update_path = None;
                 self.update_sha256 = None;
                 eprintln!("No se pudo buscar la actualización: {message}");
+                self.render_chrome();
+            }
+            UserEvent::MemoryMeasured(bytes) => {
+                self.memory_bytes = bytes;
                 self.render_chrome();
             }
         }
@@ -915,6 +998,91 @@ fn set_memory_level(view: &WebView, active: bool) {
 
 #[cfg(not(target_os = "windows"))]
 fn set_memory_level(_view: &WebView, _active: bool) {}
+
+fn start_memory_monitor(proxy: EventLoopProxy<UserEvent>) {
+    std::thread::spawn(move || loop {
+        let bytes = process_tree_working_set();
+        if proxy.send_event(UserEvent::MemoryMeasured(bytes)).is_err() {
+            break;
+        }
+        std::thread::sleep(Duration::from_secs(2));
+    });
+}
+
+#[cfg(target_os = "windows")]
+fn process_tree_working_set() -> u64 {
+    use std::collections::{HashMap, HashSet};
+    use windows::Win32::{
+        Foundation::CloseHandle,
+        System::{
+            Diagnostics::ToolHelp::{
+                CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+                TH32CS_SNAPPROCESS,
+            },
+            ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS},
+            Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ},
+        },
+    };
+
+    unsafe {
+        let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else {
+            return 0;
+        };
+        let mut parents = HashMap::new();
+        let mut entry = PROCESSENTRY32W {
+            dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+            ..Default::default()
+        };
+        if Process32FirstW(snapshot, &mut entry).is_ok() {
+            loop {
+                parents.insert(entry.th32ProcessID, entry.th32ParentProcessID);
+                if Process32NextW(snapshot, &mut entry).is_err() {
+                    break;
+                }
+            }
+        }
+        let _ = CloseHandle(snapshot);
+
+        let root = std::process::id();
+        let mut family = HashSet::from([root]);
+        loop {
+            let mut changed = false;
+            for (&pid, &parent) in &parents {
+                if family.contains(&parent) && family.insert(pid) {
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
+        family
+            .into_iter()
+            .filter_map(|pid| {
+                let process =
+                    OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid).ok()?;
+                let mut counters = PROCESS_MEMORY_COUNTERS {
+                    cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
+                    ..Default::default()
+                };
+                let valid = K32GetProcessMemoryInfo(
+                    process,
+                    &mut counters,
+                    std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
+                )
+                .as_bool();
+                let _ = CloseHandle(process);
+                valid.then_some(counters.WorkingSetSize as u64)
+            })
+            .sum()
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn process_tree_working_set() -> u64 {
+    0
+}
 
 fn title_from_url(raw: &str) -> String {
     url::Url::parse(raw)

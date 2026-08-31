@@ -11,8 +11,8 @@ La interfaz también es un WebView, pero es una página embebida de aproximadame
 Cada pestaña conserva siempre `id`, URL, título y última actividad. Su `WebView` es opcional:
 
 1. Al activarla, se crea o muestra el WebView y en Windows se marca `MemoryUsageLevel::Normal`.
-2. Al pasarla a segundo plano, se oculta y se marca `MemoryUsageLevel::Low`.
-3. Cuando vence `discard_after_minutes`, Rust elimina el WebView. Se libera el DOM, heap JavaScript y recursos del documento.
+2. Con el modo ultraligero predeterminado, al pasarla a segundo plano Rust elimina inmediatamente el WebView. Se libera el DOM, heap JavaScript y recursos del documento.
+3. Si el usuario desactiva ese modo, la pestaña se oculta, se marca `MemoryUsageLevel::Low` y se elimina cuando vence `discard_after_minutes`.
 4. Al reactivarla, se crea otro WebView en el contexto compartido y se carga la última URL. Cookies y almacenamiento en disco sobreviven; el estado puramente en memoria de la página no.
 
 El bucle de eventos duerme hasta el próximo vencimiento (`ControlFlow::WaitUntil`), por lo que la política no requiere un temporizador que despierte continuamente.
@@ -23,12 +23,11 @@ El bucle de eventos duerme hasta el próximo vencimiento (`ControlFlow::WaitUnti
 
 ## Bloqueo de contenido
 
-Hay dos capas compactas:
+El manejador nativo `ICoreWebView2::WebResourceRequested` entrega URL, página de origen, método y tipo de recurso a `adblock-rust`. Una coincidencia devuelve HTTP 204 antes de que el recurso publicitario o rastreador se descargue. Es el mismo motor de filtros mantenido por Brave.
 
-- Rust rechaza navegaciones principales hacia un conjunto pequeño de hosts de publicidad/rastreo.
-- Un script de inicio intercepta `fetch`, XHR y `sendBeacon`, y elimina selectores publicitarios frecuentes mediante un `MutationObserver`.
+Al arrancar, CRONI carga un motor serializado desde disco y, en segundo plano cada 48 horas, compila EasyList, EasyPrivacy y las reglas oficiales de Brave. Si todavía no hay caché o una descarga falla, un conjunto inicial compacto mantiene protección básica. La interfaz puede excluir únicamente el dominio actual. Una segunda capa inyecta las reglas cosméticas que el motor calcula para la página y retira contenedores publicitarios genéricos.
 
-La lista pequeña limita búsquedas y memoria, y el emparejamiento se hace por host completo o subdominio para evitar falsos positivos. No intercepta cada imagen/script descubierto por el parser antes de red. Para una versión Windows más agresiva, el siguiente módulo natural es un filtro nativo basado en `ICoreWebView2::WebResourceRequested`; debería usar una estructura de sufijos compacta y actualizaciones firmadas.
+Esto aproxima el filtrado de red de Brave sin fingir equivalencia completa: no incluye todas sus protecciones de huellas, listas regionales, reglas de scriptlets ni su ciclo de pruebas de compatibilidad.
 
 ## Caché y procesos
 
