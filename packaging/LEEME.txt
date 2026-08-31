@@ -1,0 +1,31 @@
+CRONI PORTÁTIL
+==============
+
+Cómo usarlo en otra computadora:
+
+1. Copia el archivo CRONI_PORTABLE.zip al otro equipo.
+2. Extrae todo el contenido del ZIP en una carpeta.
+3. Abre CRONI.exe.
+
+No necesita instalación. Requiere Windows 10 u 11 y Microsoft Edge
+WebView2 Runtime, que normalmente ya viene instalado con Windows.
+
+Descarga CRONI únicamente desde la sección Releases de su repositorio oficial.
+Si Windows muestra una advertencia, comprueba el origen y el publicador antes
+de decidir si lo ejecutas. No desactives SmartScreen.
+
+Los marcadores, pestañas, historial de descargas y datos de navegación se
+guardan por separado para cada usuario en:
+
+%LOCALAPPDATA%\CRONI
+
+SEGURIDAD
+---------
+
+CRONI usa Microsoft Edge WebView2 y debe ejecutarse como usuario normal,
+nunca como administrador. Mantén Windows y WebView2 actualizados. El
+bloqueador integrado reduce anuncios y rastreadores conocidos, pero no puede
+garantizar que todos los sitios o descargas sean seguros.
+
+No introduzcas contraseñas ni descargues archivos en páginas sospechosas.
+Comprueba siempre el dominio que aparece en la barra de direcciones.

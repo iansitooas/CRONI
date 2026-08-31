@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<style>
+  :root { color-scheme: dark; font: 13px "Segoe UI", system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; overflow: hidden; background: transparent; color: #eef0f4; }
+  button, input { font: inherit; }
+  #tabs { height: 45px; display: flex; gap: 5px; align-items: center; padding: 5px 0 4px 8px; background: #111318; user-select: none; }
+  #tab-list { min-width: 0; max-width: calc(100% - 190px); display: flex; gap: 4px; overflow: hidden; flex: 0 1 auto; }
+  .tab { width: 210px; height: 34px; min-width: 100px; max-width: 210px; flex: 0 1 210px; display: flex; align-items: center; gap: 7px; border: 0; border-radius: 8px; padding: 0 9px; color: #b8bdc9; background: #24272e; cursor: default; }
+  .tab.active { color: white; background: #30343d; }
+  .tab .label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex: 1; text-align: left; }
+  .tab .sleep { color: #83b6ff; font-size: 11px; }
+  .close { padding: 1px 4px; border-radius: 4px; }
+  .close:hover { background: #4a4f5a; }
+  #new-tab { flex: 0 0 31px; }
+  #window-drag { min-width: 18px; height: 100%; flex: 1; cursor: default; }
+  #window-controls { height: 45px; flex: 0 0 auto; align-self: center; display: flex; margin: -5px 0 -4px; }
+  .window-control { width: 46px; height: 45px; border: 0; border-radius: 0; color: #d8dbe2; background: transparent; font: 16px "Segoe UI Symbol", "Segoe UI", sans-serif; }
+  .window-control:hover { background: #30343d; }
+  #window-close { font-size: 23px; font-weight: 500; line-height: 1; padding-bottom: 3px; }
+  #window-close:hover { color: white; background: #c42b1c; }
+  #nav { height: 63px; display: flex; align-items: center; gap: 6px; padding: 9px 10px 12px; background: #30343d; border-bottom: 1px solid #101216; }
+  #shortcuts { height: 36px; display: flex; align-items: center; gap: 5px; padding: 4px 10px 5px; background: #24272e; border-bottom: 1px solid #101216; }
+  #shortcut-list { min-width: 0; display: flex; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+  #shortcut-list::-webkit-scrollbar { display: none; }
+  .shortcut { height: 27px; max-width: 190px; flex: 0 0 auto; display: flex; align-items: center; border-radius: 6px; background: transparent; }
+  .shortcut:hover { background: #383d46; }
+  .shortcut-open { min-width: 0; height: 27px; display: flex; align-items: center; gap: 6px; border: 0; padding: 0 5px 0 7px; color: #e9ebf0; background: transparent; }
+  .shortcut-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .shortcut-remove { width: 22px; height: 22px; flex: 0 0 22px; border: 0; border-radius: 5px; padding: 0; color: #9fa6b4; background: transparent; }
+  .shortcut-remove:hover { color: white; background: #505660; }
+  .shortcut-icon { width: 16px; height: 16px; flex: 0 0 16px; display: grid; place-items: center; border-radius: 50%; color: white; background: #596170; font-size: 10px; font-weight: 600; }
+  .shortcut-icon.youtube { border-radius: 4px; background: #f00000; font-size: 9px; padding-left: 1px; }
+  #add-shortcut { height: 27px; flex: 0 0 auto; border: 0; border-radius: 6px; padding: 0 8px; color: #aeb5c2; background: transparent; white-space: nowrap; }
+  #add-shortcut:hover { color: white; background: #383d46; }
+  .icon { width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; color: #e7e9ee; font-size: 17px; }
+  .icon:hover { background: #464b56; }
+  .reload-glyph { display: inline-block; transform-origin: center; }
+  #reload.loading .reload-glyph { animation: reload-spin .72s linear infinite; }
+  @keyframes reload-spin { to { transform: rotate(360deg); } }
+  #address { min-width: 100px; flex: 1; height: 36px; border: 1px solid #444956; border-radius: 18px; padding: 0 15px; outline: 0; color: #f7f8fa; background: #202329; }
+  #address:focus { border-color: #70a7ff; box-shadow: 0 0 0 2px #70a7ff33; }
+  #bookmark.active { color: #ffcf55; }
+  #adblock-status { cursor: default; }
+  .shield-icon { display: inline-block; width: 17px; height: 19px; background: #70a7ff; clip-path: polygon(50% 0, 94% 17%, 86% 69%, 50% 100%, 14% 69%, 6% 17%); position: relative; }
+  .shield-icon::after { content: ''; position: absolute; inset: 4px 5px 6px; border: solid #202329; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  #bookmarks-panel { display: none; position: fixed; z-index: 10; inset: 45px 0 0; height: 63px; align-items: center; gap: 5px; overflow-x: auto; border-bottom: 1px solid #101216; padding: 8px 10px; background: #24272e; box-shadow: 0 8px 20px #0007; }
+  #bookmarks-panel.open { display: flex; }
+  #downloads-panel { display: none; position: fixed; z-index: 12; top: 144px; right: 10px; width: min(420px, calc(100% - 20px)); max-height: 306px; flex-direction: column; align-items: stretch; gap: 6px; overflow-y: auto; border: 1px solid #3c414b; border-radius: 0 0 10px 10px; padding: 8px; background: #24272e; box-shadow: 0 10px 28px #0009; }
+  #downloads-panel.open { display: flex; }
+  .bookmark-row { display: flex; flex: 0 0 auto; gap: 5px; max-width: 220px; }
+  .bookmark-row button { flex: 1; min-width: 0; border: 0; border-radius: 6px; padding: 8px; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #e9ebf0; background: transparent; }
+  .bookmark-row button:hover { background: #383d46; }
+  #memory-note { display: flex; flex: 0 0 auto; align-items: center; gap: 5px; color: #9ca4b3; padding: 8px; font-size: 11px; border-left: 1px solid #3a3e47; }
+  #memory-note select { color: #eef0f4; border: 1px solid #4b505c; border-radius: 5px; padding: 3px; background: #30343d; }
+  #show-downloads.active { color: #70a7ff; background: #3a414e; }
+  #update-app { display: none; }
+  #update-app.available { display: inline-grid; color: #8fe39f; background: #24412d; animation: update-pulse 1.8s ease-in-out infinite; }
+  @keyframes update-pulse { 50% { box-shadow: 0 0 0 3px #72d38a2d; } }
+  .panel-clear:disabled { opacity: .65; cursor: default; }
+  .downloads-header { min-height: 31px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #3a3e47; padding: 0 0 7px; }
+  .downloads-header strong { flex: 1; padding-left: 3px; }
+  .download-row { min-height: 52px; width: 100%; flex: 0 0 52px; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 24px 19px; column-gap: 5px; border: 1px solid #3c414b; border-radius: 7px; padding: 4px 5px 3px 8px; background: #2c3038; }
+  .download-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; align-self: center; }
+  .download-info { color: #aeb5c2; font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .download-actions { grid-row: 1 / 3; grid-column: 2; display: flex; gap: 2px; align-items: center; }
+  .download-actions button { width: 27px; height: 27px; border: 0; border-radius: 5px; padding: 0; color: #e8eaf0; background: transparent; }
+  .download-actions button:hover { background: #464c57; }
+  .file-location-icon { position: relative; display: inline-block; width: 20px; height: 18px; vertical-align: middle; }
+  .file-location-icon .folder { position: absolute; left: 1px; bottom: 1px; width: 17px; height: 12px; border: 1.5px solid currentColor; border-radius: 2px; background: #e8eaf01a; }
+  .file-location-icon .folder::before { content: ''; position: absolute; left: 1px; top: -5px; width: 8px; height: 5px; border: 1.5px solid currentColor; border-bottom: 0; border-radius: 2px 2px 0 0; }
+  .file-location-icon .magnifier { position: absolute; right: -1px; top: -2px; width: 8px; height: 8px; border: 1.5px solid #70a7ff; border-radius: 50%; background: #2c3038; }
+  .file-location-icon .magnifier::after { content: ''; position: absolute; width: 5px; height: 1.5px; right: -4px; bottom: -2px; border-radius: 1px; background: #70a7ff; transform: rotate(45deg); transform-origin: left center; }
+  .download-empty { color: #aeb5c2; padding: 0 12px; white-space: nowrap; }
+  .panel-clear { flex: 0 0 auto; border: 0; border-radius: 6px; padding: 7px 9px; color: #d8dbe2; background: #343942; white-space: nowrap; }
+  .panel-clear:hover { background: #444a55; }
+</style>
+<body>
+  <div id="tabs">
+    <div id="tab-list"></div>
+    <button id="new-tab" class="icon" title="Nueva pestaña">＋</button>
+    <div id="window-drag" title="Arrastrar ventana"></div>
+    <div id="window-controls">
+      <button id="window-minimize" class="window-control" title="Minimizar">—</button>
+      <button id="window-maximize" class="window-control" title="Maximizar">□</button>
+      <button id="window-close" class="window-control" title="Cerrar">×</button>
+    </div>
+  </div>
+  <div id="nav">
+    <button class="icon" data-command="back" title="Atrás">←</button>
+    <button class="icon" data-command="forward" title="Adelante">→</button>
+    <button id="reload" class="icon" data-command="reload" title="Recargar"><span class="reload-glyph">↻</span></button>
+    <button class="icon" data-command="home" title="Inicio">⌂</button>
+    <input id="address" autocomplete="off" spellcheck="false" aria-label="Dirección o búsqueda">
+    <button id="adblock-status" class="icon" title="Bloqueador de anuncios y rastreadores activo" aria-label="Bloqueador activo"><span class="shield-icon"></span></button>
+    <button id="update-app" class="icon" title="Actualizar CRONI" aria-label="Actualizar CRONI">⇧</button>
+    <button id="bookmark" class="icon" title="Añadir o quitar marcador">☆</button>
+    <button id="show-downloads" class="icon" title="Descargas">⇩</button>
+    <button id="show-bookmarks" class="icon" title="Marcadores">☰</button>
+  </div>
+  <div id="shortcuts">
+    <div id="shortcut-list"></div>
+    <button id="add-shortcut" title="Guardar la página actual como acceso rápido">＋ Añadir acceso</button>
+  </div>
+  <div id="bookmarks-panel"></div>
+  <div id="downloads-panel"></div>
+<script>
+  'use strict';
+  const send = payload => window.ipc.postMessage(JSON.stringify(payload));
+  const address = document.querySelector('#address');
+  const panel = document.querySelector('#bookmarks-panel');
+  const downloadsPanel = document.querySelector('#downloads-panel');
+  const shortcutList = document.querySelector('#shortcut-list');
+  const escapeText = value => String(value || 'Nueva pestaña');
+  const formatBytes = bytes => {
+    if (!Number.isFinite(bytes) || bytes < 1) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const level = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const value = bytes / Math.pow(1024, level);
+    return `${value >= 10 || level === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[level]}`;
+  };
+  const statusText = status => ({
+    downloading: 'Descargando', cancelling: 'Cancelando', completed: 'Completada',
+    cancelled: 'Cancelada', interrupted: 'Interrumpida'
+  })[status] || 'Descarga';
+  const revealButton = title => {
+    const button = document.createElement('button'); button.title = title;
+    const icon = document.createElement('span'); icon.className = 'file-location-icon';
+    const folder = document.createElement('span'); folder.className = 'folder';
+    const magnifier = document.createElement('span'); magnifier.className = 'magnifier';
+    icon.append(folder, magnifier); button.append(icon);
+    return button;
+  };
+
+  window.renderState = state => {
+    const list = document.querySelector('#tab-list');
+    list.replaceChildren(...state.tabs.map(tab => {
+      const button = document.createElement('button');
+      button.className = 'tab' + (tab.id === state.active_id ? ' active' : '');
+      button.onclick = () => send({ type: 'select_tab', id: tab.id });
+      const sleep = document.createElement('span');
+      sleep.className = 'sleep'; sleep.textContent = tab.suspended ? '○' : '';
+      const label = document.createElement('span');
+      label.className = 'label'; label.textContent = escapeText(tab.title);
+      const close = document.createElement('span');
+      close.className = 'close'; close.textContent = '×';
+      close.onclick = event => { event.stopPropagation(); send({ type: 'close_tab', id: tab.id }); };
+      button.append(sleep, label, close);
+      return button;
+    }));
+    if (document.activeElement !== address) address.value = state.address;
+    const reload = document.querySelector('#reload');
+    reload.classList.toggle('loading', state.loading);
+    if (!state.loading && window.reloadFallback) {
+      clearTimeout(window.reloadFallback); window.reloadFallback = null;
+    }
+    const star = document.querySelector('#bookmark');
+    star.textContent = state.bookmarked ? '★' : '☆';
+    star.classList.toggle('active', state.bookmarked);
+    const closePanel = document.createElement('button');
+    closePanel.className = 'icon'; closePanel.textContent = '×'; closePanel.title = 'Cerrar marcadores';
+    closePanel.onclick = () => panel.classList.remove('open');
+    const makeDefault = document.createElement('button');
+    makeDefault.className = 'panel-clear'; makeDefault.textContent = 'Predeterminado';
+    makeDefault.title = 'Registrar CRONI y abrir Aplicaciones predeterminadas de Windows';
+    makeDefault.onclick = () => send({ type: 'set_default_browser' });
+    const updateButton = document.createElement('button');
+    updateButton.className = 'panel-clear';
+    if (state.update_ready) {
+      updateButton.textContent = `Actualizar a ${state.update_version}`;
+      updateButton.title = 'Instalar la actualización descargada y reiniciar CRONI';
+      updateButton.onclick = () => send({ type: 'install_update' });
+    } else if (state.update_status === 'checking') {
+      updateButton.textContent = 'Buscando actualización…'; updateButton.disabled = true;
+    } else if (state.update_status === 'current') {
+      updateButton.textContent = `CRONI ${state.app_version} al día`;
+      updateButton.title = 'Buscar otra vez';
+      updateButton.onclick = () => send({ type: 'check_update' });
+    } else if (state.update_status === 'failed') {
+      updateButton.textContent = 'Reintentar actualización';
+      updateButton.onclick = () => send({ type: 'check_update' });
+    } else {
+      updateButton.textContent = `CRONI ${state.app_version}`; updateButton.disabled = true;
+      updateButton.title = 'Las actualizaciones se activan al compilar una versión desde GitHub';
+    }
+    panel.replaceChildren(closePanel, makeDefault, updateButton, ...state.bookmarks.map(mark => {
+      const row = document.createElement('div'); row.className = 'bookmark-row';
+      const open = document.createElement('button'); open.textContent = escapeText(mark.title);
+      open.title = mark.url; open.onclick = () => send({ type: 'open_bookmark', url: mark.url });
+      row.append(open); return row;
+    }), (() => {
+      const note = document.createElement('label'); note.id = 'memory-note';
+      note.append('Descartar tras ');
+      const select = document.createElement('select');
+      [1, 5, 15, 30, 60].forEach(minutes => {
+        const option = document.createElement('option'); option.value = minutes;
+        option.textContent = `${minutes} min`; option.selected = minutes === state.discard_after_minutes;
+        select.append(option);
+      });
+      select.onchange = () => send({ type: 'set_discard', minutes: Number(select.value) });
+      note.append(select);
+      return note;
+    })());
+
+    shortcutList.replaceChildren(...state.bookmarks.map(mark => {
+      const row = document.createElement('div'); row.className = 'shortcut';
+      const open = document.createElement('button'); open.className = 'shortcut-open';
+      open.title = mark.url; open.onclick = () => send({ type: 'open_bookmark', url: mark.url });
+      const icon = document.createElement('span'); icon.className = 'shortcut-icon';
+      try {
+        if (new URL(mark.url).hostname.toLowerCase().endsWith('youtube.com')) {
+          icon.classList.add('youtube'); icon.textContent = '▶';
+        } else {
+          icon.textContent = escapeText(mark.title).trim().slice(0, 1).toUpperCase() || '•';
+        }
+      } catch (_) { icon.textContent = '•'; }
+      const label = document.createElement('span'); label.className = 'shortcut-label'; label.textContent = escapeText(mark.title);
+      const remove = document.createElement('button'); remove.className = 'shortcut-remove'; remove.textContent = '×'; remove.title = 'Eliminar acceso';
+      remove.onclick = event => { event.stopPropagation(); send({ type: 'remove_bookmark', url: mark.url }); };
+      open.append(icon, label); row.append(open, remove); return row;
+    }));
+
+    const downloadsButton = document.querySelector('#show-downloads');
+    const updateApp = document.querySelector('#update-app');
+    updateApp.classList.toggle('available', state.update_ready);
+    updateApp.title = state.update_ready ? `Actualizar CRONI a ${state.update_version}` : 'CRONI está actualizado';
+    const maximizeButton = document.querySelector('#window-maximize');
+    maximizeButton.textContent = state.maximized ? '❐' : '□';
+    maximizeButton.title = state.maximized ? 'Restaurar' : 'Maximizar';
+    const activeDownloads = state.downloads.filter(item => item.status === 'downloading' || item.status === 'cancelling').length;
+    downloadsButton.classList.toggle('active', activeDownloads > 0);
+    downloadsButton.title = activeDownloads ? `Descargas (${activeDownloads} activa${activeDownloads === 1 ? '' : 's'})` : 'Descargas';
+    const closeDownloads = document.createElement('button');
+    closeDownloads.className = 'icon'; closeDownloads.textContent = '×'; closeDownloads.title = 'Cerrar descargas';
+    closeDownloads.onclick = () => {
+      downloadsPanel.classList.remove('open'); send({ type: 'downloads_panel', open: false });
+    };
+    const downloadRows = [...state.downloads].reverse().map(item => {
+      const row = document.createElement('div'); row.className = 'download-row'; row.title = item.path || item.url;
+      const name = document.createElement('div'); name.className = 'download-name'; name.textContent = escapeText(item.name);
+      const info = document.createElement('div'); info.className = 'download-info';
+      const percentage = item.total > 0 ? ` · ${Math.min(100, Math.round(item.received * 100 / item.total))}%` : '';
+      const size = item.total > 0 ? `${formatBytes(item.received)} de ${formatBytes(item.total)}` : formatBytes(item.received);
+      info.textContent = `${statusText(item.status)}${percentage} · ${size}`;
+      const actions = document.createElement('div'); actions.className = 'download-actions';
+      if (item.status === 'downloading' || item.status === 'cancelling') {
+        const cancel = document.createElement('button'); cancel.textContent = '×'; cancel.title = 'Cancelar descarga';
+        cancel.disabled = item.status === 'cancelling'; cancel.onclick = () => send({ type: 'cancel_download', id: item.id });
+        actions.append(cancel);
+      } else if (item.status === 'completed') {
+        const open = document.createElement('button'); open.textContent = '↗'; open.title = 'Abrir archivo';
+        open.onclick = () => send({ type: 'open_download', id: item.id });
+        const show = revealButton('Mostrar en carpeta');
+        show.onclick = () => send({ type: 'show_download', id: item.id });
+        actions.append(open, show);
+        row.ondblclick = () => send({ type: 'open_download', id: item.id });
+      } else {
+        const show = revealButton('Mostrar ubicación');
+        show.onclick = () => send({ type: 'show_download', id: item.id });
+        actions.append(show);
+      }
+      row.append(name, info, actions);
+      return row;
+    });
+    const empty = document.createElement('div'); empty.className = 'download-empty'; empty.textContent = 'Todavía no hay descargas';
+    const clear = document.createElement('button'); clear.className = 'panel-clear'; clear.textContent = 'Limpiar'; clear.title = 'Quitar descargas terminadas del historial';
+    clear.onclick = () => send({ type: 'clear_downloads' });
+    const header = document.createElement('div'); header.className = 'downloads-header';
+    const heading = document.createElement('strong'); heading.textContent = 'Descargas';
+    header.append(heading, clear, closeDownloads);
+    downloadsPanel.replaceChildren(header, ...(downloadRows.length ? downloadRows : [empty]));
+  };
+
+  document.querySelectorAll('[data-command]').forEach(button =>
+    button.onclick = () => send({ type: button.dataset.command })
+  );
+  document.querySelector('#reload').onclick = event => {
+    event.currentTarget.classList.add('loading');
+    clearTimeout(window.reloadFallback);
+    window.reloadFallback = setTimeout(() => event.currentTarget.classList.remove('loading'), 30000);
+    send({ type: 'reload' });
+  };
+  document.querySelector('#new-tab').onclick = () => send({ type: 'new_tab' });
+  document.querySelector('#window-minimize').onclick = () => send({ type: 'window_minimize' });
+  document.querySelector('#window-maximize').onclick = () => send({ type: 'window_toggle_maximize' });
+  document.querySelector('#window-close').onclick = () => send({ type: 'window_close' });
+  const dragWindow = () => send({ type: 'window_drag' });
+  document.querySelector('#window-drag').onpointerdown = event => { if (event.button === 0) dragWindow(); };
+  document.querySelector('#window-drag').ondblclick = () => send({ type: 'window_toggle_maximize' });
+  document.querySelector('#tabs').onpointerdown = event => {
+    if (event.button === 0 && event.target === event.currentTarget) dragWindow();
+  };
+  document.querySelector('#bookmark').onclick = () => send({ type: 'toggle_bookmark' });
+  document.querySelector('#update-app').onclick = () => send({ type: 'install_update' });
+  document.querySelector('#add-shortcut').onclick = () => send({ type: 'add_shortcut' });
+  document.querySelector('#show-bookmarks').onclick = () => {
+    if (downloadsPanel.classList.contains('open')) send({ type: 'downloads_panel', open: false });
+    downloadsPanel.classList.remove('open'); panel.classList.toggle('open');
+  };
+  document.querySelector('#show-downloads').onclick = () => {
+    panel.classList.remove('open');
+    const open = !downloadsPanel.classList.contains('open');
+    downloadsPanel.classList.toggle('open', open);
+    send({ type: 'downloads_panel', open });
+  };
+  document.body.addEventListener('pointerdown', event => {
+    if (event.target !== document.body || !downloadsPanel.classList.contains('open')) return;
+    downloadsPanel.classList.remove('open');
+    send({ type: 'downloads_panel', open: false });
+  });
+  let selectAddressOnRelease = false;
+  address.addEventListener('pointerdown', () => {
+    selectAddressOnRelease = document.activeElement !== address;
+  });
+  address.addEventListener('focus', () => address.select());
+  address.addEventListener('pointerup', event => {
+    if (!selectAddressOnRelease) return;
+    event.preventDefault();
+    address.select();
+    selectAddressOnRelease = false;
+  });
+  address.onkeydown = event => {
+    if (event.key === 'Enter') { send({ type: 'navigate', url: address.value }); address.blur(); }
+  };
+</script>
+</body>
+</html>

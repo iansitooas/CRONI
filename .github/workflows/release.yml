@@ -1,0 +1,84 @@
+name: Publicar CRONI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      CRONI_GITHUB_REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Activar Rust estable
+        shell: pwsh
+        run: |
+          rustup update stable
+          rustup default stable
+
+      - name: Comprobar versión de la etiqueta
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $cargoVersion = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"$').Matches.Groups[1].Value
+          $tagVersion = $env:RELEASE_TAG.TrimStart('v', 'V')
+          if ($cargoVersion -ne $tagVersion) {
+            throw "La etiqueta $env:RELEASE_TAG no coincide con Cargo.toml ($cargoVersion)."
+          }
+
+      - name: Probar CRONI
+        run: cargo test --locked
+
+      - name: Compilar CRONI
+        run: cargo build --release --locked
+
+      - name: Firmar CRONI si hay certificado
+        shell: pwsh
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CERTIFICATE_BASE64)) {
+            Write-Host "No hay certificado configurado; se publicará sin firma Authenticode."
+            exit 0
+          }
+          $certificatePath = Join-Path $env:RUNNER_TEMP "croni-signing.pfx"
+          try {
+            [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:CERTIFICATE_BASE64))
+            $signTool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+              Sort-Object FullName | Select-Object -Last 1
+            if (-not $signTool) { throw "No se encontró SignTool." }
+            & $signTool.FullName sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $certificatePath /p $env:CERTIFICATE_PASSWORD target\release\croni.exe
+            if ($LASTEXITCODE -ne 0) { throw "Falló la firma Authenticode." }
+            & $signTool.FullName verify /pa target\release\croni.exe
+            if ($LASTEXITCODE -ne 0) { throw "No se pudo verificar la firma Authenticode." }
+          } finally {
+            Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Preparar archivos de descarga
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist\CRONI_PORTABLE | Out-Null
+          Copy-Item target\release\croni.exe dist\CRONI.exe
+          Copy-Item target\release\croni.exe dist\CRONI_PORTABLE\CRONI.exe
+          Copy-Item packaging\LEEME.txt dist\CRONI_PORTABLE\LEEME.txt
+          $hash = (Get-FileHash dist\CRONI.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path dist\CRONI.exe.sha256 -Value "$hash  CRONI.exe" -Encoding ascii
+          Compress-Archive -Path dist\CRONI_PORTABLE -DestinationPath dist\CRONI_PORTABLE.zip -CompressionLevel Optimal
+
+      - name: Publicar versión en GitHub Releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create $env:RELEASE_TAG dist\CRONI.exe dist\CRONI.exe.sha256 dist\CRONI_PORTABLE.zip --verify-tag --generate-notes
