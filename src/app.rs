@@ -76,7 +76,6 @@ pub enum UserEvent {
     },
     UpdateCurrent,
     UpdateFailed(String),
-    MemoryMeasurementDue,
 }
 
 struct Tab {
@@ -104,7 +103,6 @@ pub struct BrowserApp {
     downloads_panel_open: bool,
     downloads: Vec<DownloadItem>,
     blocker: blocker::BlockerManager,
-    memory_bytes: u64,
     update_status: String,
     update_version: Option<String>,
     update_path: Option<PathBuf>,
@@ -168,7 +166,6 @@ impl BrowserApp {
             downloads_panel_open: false,
             downloads,
             blocker,
-            memory_bytes: 0,
             update_status: if updater::is_configured() {
                 "checking".into()
             } else {
@@ -223,7 +220,6 @@ impl BrowserApp {
         self.resize_views();
         self.render_chrome();
         self.blocker.start_filter_update();
-        start_memory_monitor(self.proxy.clone());
         updater::start_update_check(self.proxy.clone());
         Ok(())
     }
@@ -715,7 +711,6 @@ impl BrowserApp {
                 .map(Window::is_maximized)
                 .unwrap_or(false),
             loading: active.loading,
-            memory_bytes: self.memory_bytes,
             blocked_count: self.blocker.blocked_count(),
             adblock_enabled: self.blocker.is_enabled_for_url(&active.url),
             adblock_status: self.blocker.status(),
@@ -917,10 +912,6 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
                 eprintln!("No se pudo buscar la actualización: {message}");
                 self.render_chrome();
             }
-            UserEvent::MemoryMeasurementDue => {
-                self.memory_bytes = measure_memory(self.tabs[self.active].view.as_ref());
-                self.render_chrome();
-            }
         }
     }
 
@@ -1010,81 +1001,6 @@ fn set_memory_level(view: &WebView, active: bool) {
 
 #[cfg(not(target_os = "windows"))]
 fn set_memory_level(_view: &WebView, _active: bool) {}
-
-fn start_memory_monitor(proxy: EventLoopProxy<UserEvent>) {
-    std::thread::spawn(move || loop {
-        if proxy.send_event(UserEvent::MemoryMeasurementDue).is_err() {
-            break;
-        }
-        std::thread::sleep(Duration::from_secs(2));
-    });
-}
-
-#[cfg(target_os = "windows")]
-fn measure_memory(view: Option<&WebView>) -> u64 {
-    use std::collections::HashSet;
-    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment8;
-    use windows::{
-        core::Interface,
-        Win32::{
-            Foundation::CloseHandle,
-            System::{
-                ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS},
-                Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ},
-            },
-        },
-    };
-
-    let mut process_ids = HashSet::from([std::process::id()]);
-    if let Some(view) = view {
-        if let Ok(environment) = view.environment().cast::<ICoreWebView2Environment8>() {
-            if let Ok(processes) = unsafe { environment.GetProcessInfos() } {
-                let mut count = 0;
-                if unsafe { processes.Count(&mut count) }.is_ok() {
-                    for index in 0..count {
-                        if let Ok(process) = unsafe { processes.GetValueAtIndex(index) } {
-                            let mut process_id = 0i32;
-                            if unsafe { process.ProcessId(&mut process_id) }.is_ok()
-                                && process_id > 0
-                            {
-                                process_ids.insert(process_id as u32);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    process_ids
-        .into_iter()
-        .filter_map(|process_id| unsafe {
-            let process = OpenProcess(
-                PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
-                false,
-                process_id,
-            )
-            .ok()?;
-            let mut counters = PROCESS_MEMORY_COUNTERS {
-                cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
-                ..Default::default()
-            };
-            let valid = K32GetProcessMemoryInfo(
-                process,
-                &mut counters,
-                std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
-            )
-            .as_bool();
-            let _ = CloseHandle(process);
-            valid.then_some(counters.WorkingSetSize as u64)
-        })
-        .sum()
-}
-
-#[cfg(not(target_os = "windows"))]
-fn measure_memory(_view: Option<&WebView>) -> u64 {
-    0
-}
 
 fn title_from_url(raw: &str) -> String {
     url::Url::parse(raw)

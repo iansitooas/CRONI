@@ -18,7 +18,6 @@ CRONI es un navegador de escritorio enfocado en reducir RAM. Está escrito en Ru
 - Descarte inmediato de todas las pestañas inactivas si el sistema emite una alerta de memoria.
 - Bloqueador nativo basado en `adblock-rust`, el motor que usa Brave, con EasyList, EasyPrivacy y reglas oficiales de Brave actualizadas en segundo plano.
 - Contador de solicitudes bloqueadas, protección activable por sitio y limpieza cosmética ligera.
-- Medidor de RAM que suma CRONI y los procesos WebView2 que utiliza.
 - Pausa de audio y video al navegar o dejar CRONI en segundo plano, además de un modo de movimiento reducido.
 - Navegaciones limitadas a HTTP/HTTPS y aislamiento de páginas web respecto del canal nativo de la aplicación.
 - Extensiones de WebView2 deshabilitadas explícitamente.

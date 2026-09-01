@@ -15,7 +15,6 @@ pub struct ChromeState<'a> {
     pub discard_after_minutes: u64,
     pub maximized: bool,
     pub loading: bool,
-    pub memory_bytes: u64,
     pub blocked_count: u64,
     pub adblock_enabled: bool,
     pub adblock_status: &'static str,

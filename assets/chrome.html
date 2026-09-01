@@ -46,7 +46,6 @@
   #adblock-status { position: relative; cursor: pointer; }
   #adblock-status.disabled { opacity: .55; }
   #adblock-count { position: absolute; right: -2px; bottom: -2px; min-width: 16px; height: 16px; border-radius: 8px; padding: 0 3px; display: grid; place-items: center; color: white; background: #326fc7; font-size: 9px; font-weight: 600; }
-  #ram-meter { height: 28px; min-width: 70px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid #454b57; border-radius: 14px; padding: 0 8px; color: #b9c0cc; background: #24272e; font-size: 11px; cursor: default; }
   .shield-icon { display: inline-block; width: 17px; height: 19px; background: #70a7ff; clip-path: polygon(50% 0, 94% 17%, 86% 69%, 50% 100%, 14% 69%, 6% 17%); position: relative; }
   .shield-icon::after { content: ''; position: absolute; inset: 4px 5px 6px; border: solid #202329; border-width: 0 2px 2px 0; transform: rotate(45deg); }
   #bookmarks-panel { display: none; position: fixed; z-index: 10; inset: 45px 0 0; height: 63px; align-items: center; gap: 5px; overflow-x: auto; border-bottom: 1px solid #101216; padding: 8px 10px; background: #24272e; box-shadow: 0 8px 20px #0007; }
@@ -97,7 +96,6 @@
     <button id="reload" class="icon" data-command="reload" title="Recargar"><span class="reload-glyph">↻</span></button>
     <button class="icon" data-command="home" title="Inicio">⌂</button>
     <input id="address" autocomplete="off" spellcheck="false" aria-label="Dirección o búsqueda">
-    <span id="ram-meter" title="RAM total de CRONI y WebView2">RAM —</span>
     <button id="adblock-status" class="icon" title="Protección activa" aria-label="Bloqueador activo"><span class="shield-icon"></span><span id="adblock-count">0</span></button>
     <button id="update-app" class="icon" title="Actualizar CRONI" aria-label="Actualizar CRONI">⇧</button>
     <button id="bookmark" class="icon" title="Añadir o quitar marcador">☆</button>
@@ -241,8 +239,6 @@
     }));
 
     const downloadsButton = document.querySelector('#show-downloads');
-    const ramMeter = document.querySelector('#ram-meter');
-    ramMeter.textContent = state.memory_bytes > 0 ? `RAM ${formatBytes(state.memory_bytes)}` : 'RAM —';
     const adblockButton = document.querySelector('#adblock-status');
     const filterStatus = ({ updating: 'actualizando listas', ready: 'listas Brave/EasyList', failed: 'listas básicas; actualización fallida', starter: 'listas básicas' })[state.adblock_status] || 'activo';
     adblockButton.classList.toggle('disabled', !state.adblock_enabled);

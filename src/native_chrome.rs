@@ -89,7 +89,6 @@ struct OwnedState {
     discard_after_minutes: u64,
     maximized: bool,
     loading: bool,
-    memory_bytes: u64,
     blocked_count: u64,
     adblock_enabled: bool,
     adblock_status: String,
@@ -123,7 +122,6 @@ impl OwnedState {
             discard_after_minutes: state.discard_after_minutes,
             maximized: state.maximized,
             loading: state.loading,
-            memory_bytes: state.memory_bytes,
             blocked_count: state.blocked_count,
             adblock_enabled: state.adblock_enabled,
             adblock_status: state.adblock_status.to_string(),
@@ -809,23 +807,6 @@ unsafe fn paint_navigation(
         Action::Command("toggle_adblock"),
         hits,
     );
-    let ram_width = scaled(92, scale);
-    let ram_rect = take_right(
-        &mut right,
-        ram_width,
-        gap,
-        y + scaled(3, scale),
-        scaled(28, scale),
-    );
-    fill(hdc, ram_rect, rgb(36, 39, 46));
-    draw_label(
-        hdc,
-        ram_rect,
-        &format!("RAM {}", format_bytes(state.memory_bytes)),
-        rgb(185, 192, 204),
-        DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX,
-    );
-
     let edit_left = x + scaled(5, scale);
     let edit_right = (right - scaled(5, scale)).max(edit_left + scaled(100, scale));
     let _ = SetWindowPos(
@@ -1325,22 +1306,4 @@ fn scaled(value: i32, scale: f64) -> i32 {
 
 fn rgb(red: u8, green: u8, blue: u8) -> COLORREF {
     COLORREF(red as u32 | ((green as u32) << 8) | ((blue as u32) << 16))
-}
-
-fn format_bytes(bytes: u64) -> String {
-    if bytes < 1024 {
-        return format!("{bytes} B");
-    }
-    let units = ["KB", "MB", "GB"];
-    let mut value = bytes as f64 / 1024.0;
-    let mut unit = 0;
-    while value >= 1024.0 && unit + 1 < units.len() {
-        value /= 1024.0;
-        unit += 1;
-    }
-    if value >= 10.0 {
-        format!("{value:.0} {}", units[unit])
-    } else {
-        format!("{value:.1} {}", units[unit])
-    }
 }
