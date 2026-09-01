@@ -237,12 +237,6 @@ impl NativeChrome {
                 Some(WPARAM(inner.font.0 as usize)),
                 Some(LPARAM(1)),
             );
-            SendMessageW(
-                edit,
-                EM_SETMARGINS,
-                Some(WPARAM((EC_LEFTMARGIN | EC_RIGHTMARGIN) as usize)),
-                Some(LPARAM((12u32 | (12u32 << 16)) as isize)),
-            );
             if !SetWindowSubclass(edit, Some(edit_subclass_proc), 1, pointer as usize).as_bool() {
                 bail!("no se pudo conectar la barra de direcciones");
             }
@@ -308,6 +302,13 @@ impl NativeChrome {
             .unwrap_or_else(|lock| lock.into_inner())
             .scale = scale;
         unsafe {
+            let address_margin = scaled(14, scale).clamp(0, u16::MAX as i32) as u32;
+            SendMessageW(
+                self.inner.edit,
+                EM_SETMARGINS,
+                Some(WPARAM((EC_LEFTMARGIN | EC_RIGHTMARGIN) as usize)),
+                Some(LPARAM((address_margin | (address_margin << 16)) as isize)),
+            );
             let _ = SetWindowPos(
                 self.inner.hwnd,
                 Some(windows::Win32::UI::WindowsAndMessaging::HWND_TOP),
@@ -818,13 +819,20 @@ unsafe fn paint_navigation(
     );
     let edit_left = x + scaled(5, scale);
     let edit_right = (right - scaled(5, scale)).max(edit_left + scaled(100, scale));
+    let edit_top = y + scaled(1, scale);
+    let edit_height = (button - scaled(1, scale)).max(scaled(24, scale));
+    fill(
+        hdc,
+        rect(edit_left, y, edit_right, y + button),
+        rgb(32, 35, 41),
+    );
     let _ = SetWindowPos(
         inner.edit,
         None,
         edit_left,
-        y,
+        edit_top,
         (edit_right - edit_left).max(20),
-        button,
+        edit_height,
         SWP_NOACTIVATE,
     );
     let border = rect(edit_left - 1, y - 1, edit_right + 1, y + button + 1);

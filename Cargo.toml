@@ -1,6 +1,6 @@
 [package]
 name = "croni"
-version = "0.4.4"
+version = "0.4.5"
 edition = "2021"
 description = "CRONI, navegador de escritorio minimalista con descarte agresivo de pestañas"
 license = "MIT"
