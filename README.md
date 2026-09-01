@@ -69,7 +69,7 @@ cargo run --release
 
 El ejecutable optimizado queda en `target\release\croni.exe`. Los datos nuevos del perfil y `config.json` se guardan en `%LOCALAPPDATA%\CRONI`; una instalación anterior conserva automáticamente su perfil de `%LOCALAPPDATA%\Navegadir` para no perder sesiones.
 
-Para distribuirlo sin instalador, copia `CRONI.exe` y `packaging\LEEME.txt` en una carpeta y comprímela. El flujo de GitHub ya genera `CRONI_PORTABLE.zip` automáticamente. Consulta [cómo publicar y actualizar](docs/PUBLICAR_EN_GITHUB.md).
+Para distribuirlo sin instalador, copia `CRONI.exe` y `packaging\LEEME.txt` en una carpeta y comprímela. El flujo de GitHub ya genera `CRONI-PORTABLE-DESCARGA.zip` automáticamente. Consulta [cómo publicar y actualizar](docs/PUBLICAR_EN_GITHUB.md).
 
 ## Estado de Linux y macOS
 

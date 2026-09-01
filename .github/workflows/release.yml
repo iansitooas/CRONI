@@ -74,7 +74,7 @@ jobs:
           Copy-Item scripts\setup-windows.ps1 dist\CRONI_PORTABLE\INSTALAR_RECURSOS.ps1
           $hash = (Get-FileHash dist\CRONI.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           Set-Content -Path dist\CRONI.exe.sha256 -Value "$hash  CRONI.exe" -Encoding ascii
-          Compress-Archive -Path dist\CRONI_PORTABLE -DestinationPath dist\CRONI_PORTABLE.zip -CompressionLevel Optimal
+          Compress-Archive -Path dist\CRONI_PORTABLE -DestinationPath dist\CRONI-PORTABLE-DESCARGA.zip -CompressionLevel Optimal
 
       - name: Publicar versión en GitHub Releases
         shell: pwsh
@@ -82,4 +82,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          gh release create $env:RELEASE_TAG dist\CRONI.exe dist\CRONI.exe.sha256 dist\CRONI_PORTABLE.zip --verify-tag --generate-notes
+          gh release create $env:RELEASE_TAG dist\CRONI-PORTABLE-DESCARGA.zip dist\CRONI.exe dist\CRONI.exe.sha256 --verify-tag --title "CRONI $env:RELEASE_TAG — DESCARGA PORTABLE" --notes "## Descargar CRONI`n`nDescarga **CRONI-PORTABLE-DESCARGA.zip**, extrae la carpeta y abre **CRONI.exe**.`n`nLos archivos CRONI.exe y CRONI.exe.sha256 son utilizados automáticamente por el actualizador."

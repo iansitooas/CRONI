@@ -3,7 +3,7 @@ CRONI PORTÁTIL
 
 Cómo usarlo en otra computadora:
 
-1. Copia el archivo CRONI_PORTABLE.zip al otro equipo.
+1. Copia el archivo CRONI-PORTABLE-DESCARGA.zip al otro equipo.
 2. Extrae todo el contenido del ZIP en una carpeta.
 3. Abre CRONI.exe.
 

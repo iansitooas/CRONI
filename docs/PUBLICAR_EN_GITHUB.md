@@ -4,17 +4,17 @@
 
 1. Crea un repositorio público vacío en GitHub y sube este proyecto completo.
 2. Comprueba que la pestaña **Actions** esté habilitada.
-3. Confirma que la versión de `Cargo.toml` sea la que quieres publicar, por ejemplo `0.4.0`.
+3. Confirma que la versión de `Cargo.toml` sea la que quieres publicar, por ejemplo `0.4.1`.
 4. Crea y sube una etiqueta con la misma versión:
 
    ```powershell
-   git tag v0.4.0
-   git push origin v0.4.0
+   git tag v0.4.1
+   git push origin v0.4.1
    ```
 
 El flujo `.github/workflows/release.yml` ejecuta las pruebas, compila en Windows y crea una versión de GitHub con:
 
-- `CRONI_PORTABLE.zip`, para descargar y extraer; también incluye el script opcional de WebView2;
+- `CRONI-PORTABLE-DESCARGA.zip`, la descarga recomendada para extraer y abrir; también incluye el script opcional de WebView2;
 - `CRONI.exe`, usado también por el actualizador;
 - `CRONI.exe.sha256`, usado para verificar que la descarga no fue modificada.
 
@@ -22,10 +22,10 @@ El repositorio `propietario/nombre` queda incorporado automáticamente al ejecut
 
 ## Publicar las versiones siguientes
 
-1. Cambia `version` en `Cargo.toml`, por ejemplo a `0.4.1`.
+1. Cambia `version` en `Cargo.toml`, por ejemplo a `0.4.2`.
 2. Ejecuta `cargo check` y `cargo test`.
 3. Sube los cambios a GitHub.
-4. Crea y sube `v0.4.1`.
+4. Crea y sube `v0.4.2`.
 
 No reemplaces archivos de una versión ya publicada. Crea siempre una etiqueta y una versión nuevas.
 
