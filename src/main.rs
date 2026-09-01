@@ -5,6 +5,8 @@ mod blocker;
 mod config;
 mod default_browser;
 mod downloads;
+#[cfg(target_os = "windows")]
+mod native_chrome;
 mod navigation;
 mod ui;
 mod updater;

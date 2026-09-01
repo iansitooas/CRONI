@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 pub const TOOLBAR_HEIGHT_LOGICAL: f64 = 144.0;
+#[cfg(not(target_os = "windows"))]
 pub const CHROME_HTML: &str = include_str!("../assets/chrome.html");
 
 #[derive(Serialize)]

@@ -4,7 +4,7 @@
 
 La aplicación usa Rust, `winit` para ventana/eventos y `wry` para alojar el WebView del sistema. Frente a Electron, el binario no lleva otra distribución de Chromium. En Windows `wry` usa WebView2; en macOS usa WKWebView y en Linux WebKitGTK.
 
-La interfaz también es un WebView, pero es una página embebida de aproximadamente unos pocos KiB, sin React, servidor, runtime Node ni red. Este pequeño coste simplifica una interfaz consistente y permite concentrar la optimización donde importa: los documentos web de las pestañas.
+En Windows, las tres filas de interfaz son una ventana hija Win32 dibujada con GDI, con un control `EDIT` nativo para la dirección y menús Win32 para ajustes y descargas. No se crea un entorno WebView2 adicional para la interfaz. En otras plataformas se conserva provisionalmente la interfaz HTML embebida mientras se desarrollan adaptadores nativos equivalentes.
 
 ## Ciclo de vida de una pestaña
 
@@ -25,7 +25,7 @@ El bucle de eventos duerme hasta el próximo vencimiento (`ControlFlow::WaitUnti
 
 El manejador nativo `ICoreWebView2::WebResourceRequested` entrega URL, página de origen, método y tipo de recurso a `adblock-rust`. Una coincidencia devuelve HTTP 204 antes de que el recurso publicitario o rastreador se descargue. Es el mismo motor de filtros mantenido por Brave.
 
-Al arrancar, CRONI carga un motor serializado desde disco y, en segundo plano cada 48 horas, compila EasyList, EasyPrivacy y las reglas oficiales de Brave. Si todavía no hay caché o una descarga falla, un conjunto inicial compacto mantiene protección básica. La interfaz puede excluir únicamente el dominio actual. Una segunda capa inyecta las reglas cosméticas que el motor calcula para la página y retira contenedores publicitarios genéricos.
+Al arrancar, CRONI carga un motor serializado desde disco y, en segundo plano cada 48 horas, compila EasyList, EasyPrivacy y las reglas oficiales de Brave. Si todavía no hay caché o una descarga falla, un conjunto inicial compacto mantiene protección básica. La interfaz puede excluir únicamente el dominio actual. Una segunda capa inyecta las reglas cosméticas que el motor calcula para la página, retira contenedores publicitarios genéricos y salta anuncios de video detectados por el reproductor de YouTube restaurando después el estado del contenido.
 
 Esto aproxima el filtrado de red de Brave sin fingir equivalencia completa: no incluye todas sus protecciones de huellas, listas regionales, reglas de scriptlets ni su ciclo de pruebas de compatibilidad.
 
@@ -36,7 +36,7 @@ No se fuerza recolección de basura: WebView2 no ofrece una API estable para ell
 ## Seguridad y límites
 
 - Las extensiones están deshabilitadas y no hay plugins de aplicación.
-- El contenido web no recibe APIs nativas de CRONI; IPC sólo existe en el WebView de interfaz.
+- El contenido web no recibe APIs nativas ni un canal IPC de CRONI; la interfaz Win32 envía sus comandos directamente al bucle de eventos de Rust.
 - Ventanas emergentes se convierten en pestañas y la ventana solicitada se deniega.
 - WebView2 se actualiza con el sistema, evitando fijar un motor antiguo dentro de la aplicación.
 - El actualizador consulta únicamente la versión estable más reciente del repositorio incorporado al compilar, exige HTTPS y verifica el SHA-256 antes de reemplazar el ejecutable mediante un proceso auxiliar.

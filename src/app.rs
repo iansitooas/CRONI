@@ -1,10 +1,14 @@
+#[cfg(target_os = "windows")]
+use crate::native_chrome::NativeChrome;
+#[cfg(not(target_os = "windows"))]
+use crate::ui::CHROME_HTML;
 use crate::{
     blocker,
     config::{app_data_dir, AppConfig, Bookmark},
     default_browser,
     downloads::{self, DownloadItem},
     navigation::normalize_address,
-    ui::{ChromeState, TabState, CHROME_HTML, TOOLBAR_HEIGHT_LOGICAL},
+    ui::{ChromeState, TabState, TOOLBAR_HEIGHT_LOGICAL},
     updater,
 };
 use anyhow::{Context, Result};
@@ -31,11 +35,6 @@ use wry::{MemoryUsageLevel, WebViewBuilderExtWindows, WebViewExtWindows};
 
 #[cfg(target_os = "windows")]
 use winit::platform::windows::WindowAttributesExtWindows;
-
-#[cfg(target_os = "windows")]
-use windows::Win32::UI::WindowsAndMessaging::{
-    SetWindowPos, HWND_TOP, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-};
 
 #[cfg(target_os = "windows")]
 use windows::{
@@ -77,7 +76,7 @@ pub enum UserEvent {
     },
     UpdateCurrent,
     UpdateFailed(String),
-    MemoryMeasured(u64),
+    MemoryMeasurementDue,
 }
 
 struct Tab {
@@ -94,6 +93,9 @@ pub struct BrowserApp {
     config: AppConfig,
     context: WebContext,
     window: Option<Window>,
+    #[cfg(target_os = "windows")]
+    chrome: Option<NativeChrome>,
+    #[cfg(not(target_os = "windows"))]
     chrome: Option<WebView>,
     tabs: Vec<Tab>,
     active: usize,
@@ -196,16 +198,21 @@ impl BrowserApp {
             .with_undecorated_shadow(true);
         let window = event_loop.create_window(attributes)?;
 
-        let toolbar_bounds = toolbar_bounds(&window, self.downloads_panel_open);
-        let proxy = self.proxy.clone();
+        #[cfg(target_os = "windows")]
+        let chrome = NativeChrome::new(&window, self.proxy.clone())
+            .context("no se pudo crear la interfaz nativa")?;
+        #[cfg(not(target_os = "windows"))]
         let chrome = WebViewBuilder::new()
             .with_html(CHROME_HTML)
-            .with_bounds(toolbar_bounds)
+            .with_bounds(toolbar_bounds(&window, self.downloads_panel_open))
             .with_transparent(true)
             .with_incognito(true)
             .with_devtools(cfg!(debug_assertions))
-            .with_ipc_handler(move |request| {
-                let _ = proxy.send_event(UserEvent::ChromeCommand(request.body().clone()));
+            .with_ipc_handler({
+                let proxy = self.proxy.clone();
+                move |request| {
+                    let _ = proxy.send_event(UserEvent::ChromeCommand(request.body().clone()));
+                }
             })
             .build_as_child(&window)
             .context("no se pudo crear la interfaz del navegador")?;
@@ -721,6 +728,9 @@ impl BrowserApp {
             update_version: self.update_version.as_deref(),
             update_ready: self.update_path.is_some() && self.update_sha256.is_some(),
         };
+        #[cfg(target_os = "windows")]
+        chrome.render(&state);
+        #[cfg(not(target_os = "windows"))]
         if let Ok(json) = serde_json::to_string(&state) {
             let _ = chrome.evaluate_script(&format!("window.renderState({json})"));
         }
@@ -731,8 +741,13 @@ impl BrowserApp {
             return;
         };
         if let Some(chrome) = self.chrome.as_ref() {
-            let _ = chrome.set_bounds(toolbar_bounds(window, self.downloads_panel_open));
-            keep_chrome_above_content(chrome);
+            #[cfg(target_os = "windows")]
+            chrome.resize(window.inner_size().width, window.scale_factor());
+            #[cfg(not(target_os = "windows"))]
+            {
+                let _ = chrome.set_bounds(toolbar_bounds(window, self.downloads_panel_open));
+                keep_chrome_above_content(chrome);
+            }
         }
         let bounds = content_bounds(window);
         for tab in &self.tabs {
@@ -902,8 +917,8 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
                 eprintln!("No se pudo buscar la actualización: {message}");
                 self.render_chrome();
             }
-            UserEvent::MemoryMeasured(bytes) => {
-                self.memory_bytes = bytes;
+            UserEvent::MemoryMeasurementDue => {
+                self.memory_bytes = measure_memory(self.tabs[self.active].view.as_ref());
                 self.render_chrome();
             }
         }
@@ -926,8 +941,10 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 const DOWNLOAD_PANEL_HEIGHT_LOGICAL: f64 = 320.0;
 
+#[cfg(not(target_os = "windows"))]
 fn toolbar_height(window: &Window, downloads_panel_open: bool) -> u32 {
     let logical_height = TOOLBAR_HEIGHT_LOGICAL
         + if downloads_panel_open {
@@ -938,6 +955,7 @@ fn toolbar_height(window: &Window, downloads_panel_open: bool) -> u32 {
     (logical_height * window.scale_factor()).round() as u32
 }
 
+#[cfg(not(target_os = "windows"))]
 fn toolbar_bounds(window: &Window, downloads_panel_open: bool) -> Rect {
     let size = window.inner_size();
     Rect {
@@ -963,12 +981,6 @@ fn app_icon() -> Option<Icon> {
         64,
     )
     .ok()
-}
-
-#[cfg(target_os = "windows")]
-fn keep_chrome_above_content(chrome: &WebView) {
-    let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
-    let _ = unsafe { SetWindowPos(chrome.hwnd(), Some(HWND_TOP), 0, 0, 0, 0, flags) };
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -1001,8 +1013,7 @@ fn set_memory_level(_view: &WebView, _active: bool) {}
 
 fn start_memory_monitor(proxy: EventLoopProxy<UserEvent>) {
     std::thread::spawn(move || loop {
-        let bytes = process_tree_working_set();
-        if proxy.send_event(UserEvent::MemoryMeasured(bytes)).is_err() {
+        if proxy.send_event(UserEvent::MemoryMeasurementDue).is_err() {
             break;
         }
         std::thread::sleep(Duration::from_secs(2));
@@ -1010,77 +1021,68 @@ fn start_memory_monitor(proxy: EventLoopProxy<UserEvent>) {
 }
 
 #[cfg(target_os = "windows")]
-fn process_tree_working_set() -> u64 {
-    use std::collections::{HashMap, HashSet};
-    use windows::Win32::{
-        Foundation::CloseHandle,
-        System::{
-            Diagnostics::ToolHelp::{
-                CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
-                TH32CS_SNAPPROCESS,
+fn measure_memory(view: Option<&WebView>) -> u64 {
+    use std::collections::HashSet;
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment8;
+    use windows::{
+        core::Interface,
+        Win32::{
+            Foundation::CloseHandle,
+            System::{
+                ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS},
+                Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ},
             },
-            ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS},
-            Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ},
         },
     };
 
-    unsafe {
-        let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else {
-            return 0;
-        };
-        let mut parents = HashMap::new();
-        let mut entry = PROCESSENTRY32W {
-            dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
-            ..Default::default()
-        };
-        if Process32FirstW(snapshot, &mut entry).is_ok() {
-            loop {
-                parents.insert(entry.th32ProcessID, entry.th32ParentProcessID);
-                if Process32NextW(snapshot, &mut entry).is_err() {
-                    break;
+    let mut process_ids = HashSet::from([std::process::id()]);
+    if let Some(view) = view {
+        if let Ok(environment) = view.environment().cast::<ICoreWebView2Environment8>() {
+            if let Ok(processes) = unsafe { environment.GetProcessInfos() } {
+                let mut count = 0;
+                if unsafe { processes.Count(&mut count) }.is_ok() {
+                    for index in 0..count {
+                        if let Ok(process) = unsafe { processes.GetValueAtIndex(index) } {
+                            let mut process_id = 0i32;
+                            if unsafe { process.ProcessId(&mut process_id) }.is_ok()
+                                && process_id > 0
+                            {
+                                process_ids.insert(process_id as u32);
+                            }
+                        }
+                    }
                 }
             }
         }
-        let _ = CloseHandle(snapshot);
-
-        let root = std::process::id();
-        let mut family = HashSet::from([root]);
-        loop {
-            let mut changed = false;
-            for (&pid, &parent) in &parents {
-                if family.contains(&parent) && family.insert(pid) {
-                    changed = true;
-                }
-            }
-            if !changed {
-                break;
-            }
-        }
-
-        family
-            .into_iter()
-            .filter_map(|pid| {
-                let process =
-                    OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid).ok()?;
-                let mut counters = PROCESS_MEMORY_COUNTERS {
-                    cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
-                    ..Default::default()
-                };
-                let valid = K32GetProcessMemoryInfo(
-                    process,
-                    &mut counters,
-                    std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
-                )
-                .as_bool();
-                let _ = CloseHandle(process);
-                valid.then_some(counters.WorkingSetSize as u64)
-            })
-            .sum()
     }
+
+    process_ids
+        .into_iter()
+        .filter_map(|process_id| unsafe {
+            let process = OpenProcess(
+                PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+                false,
+                process_id,
+            )
+            .ok()?;
+            let mut counters = PROCESS_MEMORY_COUNTERS {
+                cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
+                ..Default::default()
+            };
+            let valid = K32GetProcessMemoryInfo(
+                process,
+                &mut counters,
+                std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
+            )
+            .as_bool();
+            let _ = CloseHandle(process);
+            valid.then_some(counters.WorkingSetSize as u64)
+        })
+        .sum()
 }
 
 #[cfg(not(target_os = "windows"))]
-fn process_tree_working_set() -> u64 {
+fn measure_memory(_view: Option<&WebView>) -> u64 {
     0
 }
 

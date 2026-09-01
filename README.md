@@ -5,6 +5,7 @@ CRONI es un navegador de escritorio enfocado en reducir RAM. Está escrito en Ru
 ## Qué incluye
 
 - Barra de dirección y búsqueda, atrás, adelante, recarga e inicio.
+- Interfaz superior Win32 nativa en Windows: no usa un segundo WebView para dibujar pestañas, botones o menús.
 - Pestañas y marcadores persistentes.
 - Barra de accesos rápidos persistentes: incluye YouTube inicialmente y permite guardar o eliminar enlaces con un clic.
 - Registro por usuario como navegador disponible para HTTP/HTTPS y acceso directo a la pantalla oficial de Aplicaciones predeterminadas de Windows.
@@ -27,13 +28,13 @@ CRONI es un navegador de escritorio enfocado en reducir RAM. Está escrito en Ru
 
 ```text
 Ventana nativa (winit)
-├── WebView de interfaz (HTML/CSS embebido, sin servidor local)
-└── WebViews de contenido, uno por pestaña caliente
+├── Barra, pestañas y menús nativos Win32 (sin motor web)
+└── WebView de contenido para la pestaña activa
     ├── activa: visible + MemoryUsageLevel::Normal
     └── inactiva: WebView destruido; sólo conserva URL/título
 ```
 
-Todas las pestañas comparten un `WebContext`, por lo que cookies, inicios de sesión y caché en disco se reutilizan. La interfaz envía comandos JSON pequeños a Rust; el estado vuelve mediante una única llamada JavaScript. Consulta [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para los detalles y límites deliberados.
+Todas las pestañas comparten un `WebContext`, por lo que cookies, inicios de sesión y caché en disco se reutilizan. En Windows, la interfaz se dibuja directamente con GDI y controles Win32; sólo el sitio abierto necesita WebView2. Consulta [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para los detalles y límites deliberados.
 
 ## Instalación rápida en Windows
 
