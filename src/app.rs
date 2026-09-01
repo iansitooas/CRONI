@@ -42,6 +42,9 @@ use windows::{
     Win32::UI::Shell::{ILCreateFromPathW, ILFree, SHOpenFolderAndSelectItems},
 };
 
+#[cfg(target_os = "windows")]
+const FULLSCREEN_WEBVIEW_INSET: u32 = 3;
+
 #[derive(Debug)]
 pub enum UserEvent {
     ChromeCommand(String),
@@ -105,6 +108,7 @@ pub struct BrowserApp {
     next_tab_id: u64,
     window_is_focused: bool,
     content_fullscreen: bool,
+    refresh_surface_after_load: Option<u64>,
     downloads_panel_open: bool,
     downloads: Vec<DownloadItem>,
     blocker: blocker::BlockerManager,
@@ -169,6 +173,7 @@ impl BrowserApp {
             next_tab_id,
             window_is_focused: true,
             content_fullscreen: false,
+            refresh_surface_after_load: None,
             downloads_panel_open: false,
             downloads,
             blocker,
@@ -405,6 +410,24 @@ impl BrowserApp {
         self.render_chrome();
     }
 
+    fn reload_active(&mut self) {
+        let tab_id = self.tabs[self.active].id;
+        if self.content_fullscreen {
+            if let Some(view) = self.tabs[self.active].view.as_ref() {
+                let _ = view
+                    .evaluate_script("if (document.fullscreenElement) document.exitFullscreen();");
+            }
+            self.set_content_fullscreen(tab_id, false);
+        }
+        self.refresh_surface_after_load = Some(tab_id);
+        if let Some(view) = self.tabs[self.active].view.as_ref() {
+            if let Err(error) = view.reload() {
+                self.refresh_surface_after_load = None;
+                eprintln!("Error al recargar: {error}");
+            }
+        }
+    }
+
     fn handle_chrome_command(&mut self, raw: &str, event_loop: &ActiveEventLoop) {
         let Ok(command) = serde_json::from_str::<Value>(raw) else {
             return;
@@ -421,7 +444,7 @@ impl BrowserApp {
             }
             "back" => self.navigate_with(|view| view.go_back()),
             "forward" => self.navigate_with(|view| view.go_forward()),
-            "reload" => self.navigate_with(|view| view.reload()),
+            "reload" => self.reload_active(),
             "home" => self.navigate_active(&self.config.home_url.clone()),
             "new_tab" => self.add_tab(&self.config.home_url.clone(), true),
             "select_tab" => {
@@ -771,6 +794,10 @@ impl BrowserApp {
         for tab in &self.tabs {
             if let Some(view) = tab.view.as_ref() {
                 let _ = view.set_bounds(bounds);
+                #[cfg(target_os = "windows")]
+                unsafe {
+                    let _ = view.controller().NotifyParentWindowPositionChanged();
+                }
             }
         }
     }
@@ -840,7 +867,10 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
                 for (index, tab) in self.tabs.iter().enumerate() {
                     if let Some(view) = tab.view.as_ref() {
                         set_memory_level(view, focused && index == self.active);
-                        if !focused && self.config.pause_media_when_unfocused {
+                        if !focused
+                            && !self.content_fullscreen
+                            && self.config.pause_media_when_unfocused
+                        {
                             let _ = view.evaluate_script(blocker::PAUSE_MEDIA_SCRIPT);
                         }
                     }
@@ -869,6 +899,14 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
                     if let Some(tab) = self.tabs.iter().find(|tab| tab.id == tab_id) {
                         if let (Some(view), Some(script)) = (tab.view.as_ref(), script) {
                             let _ = view.evaluate_script(&script);
+                        }
+                    }
+                    if self.refresh_surface_after_load == Some(tab_id) {
+                        self.refresh_surface_after_load = None;
+                        if let Some(tab) = self.tabs.iter().find(|tab| tab.id == tab_id) {
+                            if let Some(view) = tab.view.as_ref() {
+                                refresh_view_surface(view);
+                            }
                         }
                     }
                 }
@@ -997,6 +1035,18 @@ fn toolbar_bounds(window: &Window, downloads_panel_open: bool) -> Rect {
 
 fn content_bounds(window: &Window, fullscreen: bool) -> Rect {
     let size = window.inner_size();
+    #[cfg(target_os = "windows")]
+    if fullscreen {
+        let inset = FULLSCREEN_WEBVIEW_INSET;
+        return Rect {
+            position: PhysicalPosition::new(inset as i32, inset as i32).into(),
+            size: PhysicalSize::new(
+                size.width.saturating_sub(inset * 2),
+                size.height.saturating_sub(inset * 2),
+            )
+            .into(),
+        };
+    }
     let top = if fullscreen {
         0
     } else {
@@ -1037,6 +1087,19 @@ fn attach_fullscreen_handler(
     }
     Ok(())
 }
+
+#[cfg(target_os = "windows")]
+fn refresh_view_surface(view: &WebView) {
+    let _ = view.set_visible(false);
+    unsafe {
+        let _ = view.controller().NotifyParentWindowPositionChanged();
+    }
+    let _ = view.set_visible(true);
+    let _ = view.focus();
+}
+
+#[cfg(not(target_os = "windows"))]
+fn refresh_view_surface(_view: &WebView) {}
 
 fn app_icon() -> Option<Icon> {
     Icon::from_rgba(
