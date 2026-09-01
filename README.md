@@ -6,6 +6,7 @@ CRONI es un navegador de escritorio enfocado en reducir RAM. Está escrito en Ru
 
 - Barra de dirección y búsqueda, atrás, adelante, recarga e inicio.
 - Interfaz superior Win32 nativa en Windows: no usa un segundo WebView para dibujar pestañas, botones o menús.
+- Pantalla completa HTML5 compatible con reproductores como YouTube, ocultando y restaurando la barra sin recargar la página.
 - Pestañas y marcadores persistentes.
 - Barra de accesos rápidos persistentes: incluye YouTube inicialmente y permite guardar o eliminar enlaces con un clic.
 - Registro por usuario como navegador disponible para HTTP/HTTPS y acceso directo a la pantalla oficial de Aplicaciones predeterminadas de Windows.

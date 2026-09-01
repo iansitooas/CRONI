@@ -25,6 +25,8 @@ El bucle de eventos duerme hasta el próximo vencimiento (`ControlFlow::WaitUnti
 
 El manejador nativo `ICoreWebView2::WebResourceRequested` entrega URL, página de origen, método y tipo de recurso a `adblock-rust`. Una coincidencia devuelve HTTP 204 antes de que el recurso publicitario o rastreador se descargue. Es el mismo motor de filtros mantenido por Brave.
 
+El evento `ContainsFullScreenElementChanged` de WebView2 controla la pantalla completa HTML5. Al entrar, CRONI oculta la barra nativa, expande el mismo WebView a toda la ventana y usa pantalla completa sin bordes; al salir restaura la ventana y la barra sin navegar ni recrear la pestaña.
+
 Al arrancar, CRONI carga un motor serializado desde disco y, en segundo plano cada 48 horas, compila EasyList, EasyPrivacy y las reglas oficiales de Brave. Si todavía no hay caché o una descarga falla, un conjunto inicial compacto mantiene protección básica. La interfaz puede excluir únicamente el dominio actual. Una segunda capa inyecta las reglas cosméticas que el motor calcula para la página, retira contenedores publicitarios genéricos y salta anuncios de video detectados por el reproductor de YouTube restaurando después el estado del contenido.
 
 Esto aproxima el filtrado de red de Brave sin fingir equivalencia completa: no incluye todas sus protecciones de huellas, listas regionales, reglas de scriptlets ni su ciclo de pruebas de compatibilidad.

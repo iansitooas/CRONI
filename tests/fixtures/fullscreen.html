@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <title>Prueba de pantalla completa de CRONI</title>
+    <style>
+      html, body { height: 100%; margin: 0; background: #11151c; color: white; font: 24px sans-serif; }
+      body { display: grid; place-items: center; }
+      button { padding: 24px 36px; border: 0; border-radius: 12px; font: inherit; cursor: pointer; }
+      html:fullscreen { background: #0d5c36; }
+    </style>
+  </head>
+  <body>
+    <button id="toggle">Entrar en pantalla completa</button>
+    <script>
+      const button = document.querySelector('#toggle');
+      button.addEventListener('click', async () => {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await document.documentElement.requestFullscreen();
+      });
+      document.addEventListener('fullscreenchange', () => {
+        button.textContent = document.fullscreenElement
+          ? 'Salir de pantalla completa'
+          : 'Entrar en pantalla completa';
+      });
+    </script>
+  </body>
+</html>

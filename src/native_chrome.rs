@@ -27,14 +27,14 @@ use windows::{
                 DestroyWindow, GetClientRect, GetCursorPos, GetWindowLongPtrW,
                 GetWindowTextLengthW, GetWindowTextW, KillTimer, LoadCursorW, RegisterClassW,
                 SendMessageW, SetTimer, SetWindowLongPtrW, SetWindowPos, SetWindowTextW,
-                TrackPopupMenu, CREATESTRUCTW, CS_DBLCLKS, CS_HREDRAW, CS_VREDRAW, EC_LEFTMARGIN,
-                EC_RIGHTMARGIN, EN_SETFOCUS, ES_AUTOHSCROLL, GWLP_USERDATA, HMENU, IDC_ARROW,
-                MF_CHECKED, MF_GRAYED, MF_POPUP, MF_SEPARATOR, MF_STRING, MF_UNCHECKED,
-                SWP_NOACTIVATE, SWP_SHOWWINDOW, TPM_RETURNCMD, TPM_RIGHTBUTTON, WINDOW_EX_STYLE,
-                WINDOW_STYLE, WM_COMMAND, WM_CREATE, WM_CTLCOLOREDIT, WM_KEYDOWN, WM_LBUTTONDBLCLK,
-                WM_LBUTTONDOWN, WM_LBUTTONUP, WM_NCCREATE, WM_NCDESTROY, WM_PAINT, WM_SETFOCUS,
-                WM_SETFONT, WM_SIZE, WM_TIMER, WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_TABSTOP,
-                WS_VISIBLE,
+                ShowWindow, TrackPopupMenu, CREATESTRUCTW, CS_DBLCLKS, CS_HREDRAW, CS_VREDRAW,
+                EC_LEFTMARGIN, EC_RIGHTMARGIN, EN_SETFOCUS, ES_AUTOHSCROLL, GWLP_USERDATA, HMENU,
+                IDC_ARROW, MF_CHECKED, MF_GRAYED, MF_POPUP, MF_SEPARATOR, MF_STRING, MF_UNCHECKED,
+                SWP_NOACTIVATE, SWP_SHOWWINDOW, SW_HIDE, SW_SHOWNOACTIVATE, TPM_RETURNCMD,
+                TPM_RIGHTBUTTON, WINDOW_EX_STYLE, WINDOW_STYLE, WM_COMMAND, WM_CREATE,
+                WM_CTLCOLOREDIT, WM_KEYDOWN, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN, WM_LBUTTONUP,
+                WM_NCCREATE, WM_NCDESTROY, WM_PAINT, WM_SETFOCUS, WM_SETFONT, WM_SIZE, WM_TIMER,
+                WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_TABSTOP, WS_VISIBLE,
             },
         },
     },
@@ -318,6 +318,15 @@ impl NativeChrome {
                 SWP_NOACTIVATE | SWP_SHOWWINDOW,
             );
             let _ = InvalidateRect(Some(self.inner.hwnd), None, false);
+        }
+    }
+
+    pub fn set_visible(&self, visible: bool) {
+        unsafe {
+            let _ = ShowWindow(
+                self.inner.hwnd,
+                if visible { SW_SHOWNOACTIVATE } else { SW_HIDE },
+            );
         }
     }
 }

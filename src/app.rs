@@ -23,7 +23,7 @@ use winit::{
     dpi::LogicalSize,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy},
-    window::{Icon, Window, WindowId},
+    window::{Fullscreen, Icon, Window, WindowId},
 };
 use wry::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -76,6 +76,10 @@ pub enum UserEvent {
     },
     UpdateCurrent,
     UpdateFailed(String),
+    ContentFullscreenChanged {
+        tab_id: u64,
+        fullscreen: bool,
+    },
 }
 
 struct Tab {
@@ -100,6 +104,7 @@ pub struct BrowserApp {
     active: usize,
     next_tab_id: u64,
     window_is_focused: bool,
+    content_fullscreen: bool,
     downloads_panel_open: bool,
     downloads: Vec<DownloadItem>,
     blocker: blocker::BlockerManager,
@@ -163,6 +168,7 @@ impl BrowserApp {
             active: 0,
             next_tab_id,
             window_is_focused: true,
+            content_fullscreen: false,
             downloads_panel_open: false,
             downloads,
             blocker,
@@ -232,7 +238,7 @@ impl BrowserApp {
         let window = self.window.as_ref().context("ventana aún no creada")?;
         let tab_id = self.tabs[self.active].id;
         let url = self.tabs[self.active].url.clone();
-        let bounds = content_bounds(window);
+        let bounds = content_bounds(window, self.content_fullscreen);
         let location_proxy = self.proxy.clone();
         let title_proxy = self.proxy.clone();
         let popup_proxy = self.proxy.clone();
@@ -293,6 +299,8 @@ impl BrowserApp {
             self.next_download_id.clone(),
             self.download_operations.clone(),
         )?;
+        #[cfg(target_os = "windows")]
+        attach_fullscreen_handler(&view, self.proxy.clone(), tab_id)?;
         set_memory_level(&view, self.window_is_focused);
         self.tabs[self.active].loading = true;
         self.tabs[self.active].view = Some(view);
@@ -325,6 +333,15 @@ impl BrowserApp {
         }
         let now = Instant::now();
         if target != self.active {
+            if self.content_fullscreen {
+                let current_id = self.tabs[self.active].id;
+                if let Some(view) = self.tabs[self.active].view.as_ref() {
+                    let _ = view.evaluate_script(
+                        "if (document.fullscreenElement) document.exitFullscreen();",
+                    );
+                }
+                self.set_content_fullscreen(current_id, false);
+            }
             if let Some(view) = self.tabs[self.active].view.as_ref() {
                 let _ = view.evaluate_script(blocker::PAUSE_MEDIA_SCRIPT);
                 let _ = view.set_visible(false);
@@ -737,14 +754,20 @@ impl BrowserApp {
         };
         if let Some(chrome) = self.chrome.as_ref() {
             #[cfg(target_os = "windows")]
-            chrome.resize(window.inner_size().width, window.scale_factor());
+            {
+                chrome.set_visible(!self.content_fullscreen);
+                if !self.content_fullscreen {
+                    chrome.resize(window.inner_size().width, window.scale_factor());
+                }
+            }
             #[cfg(not(target_os = "windows"))]
             {
+                let _ = chrome.set_visible(!self.content_fullscreen);
                 let _ = chrome.set_bounds(toolbar_bounds(window, self.downloads_panel_open));
                 keep_chrome_above_content(chrome);
             }
         }
-        let bounds = content_bounds(window);
+        let bounds = content_bounds(window, self.content_fullscreen);
         for tab in &self.tabs {
             if let Some(view) = tab.view.as_ref() {
                 let _ = view.set_bounds(bounds);
@@ -767,6 +790,20 @@ impl BrowserApp {
         if let Err(error) = self.config.save() {
             eprintln!("No se pudo guardar la sesión: {error}");
         }
+    }
+
+    fn set_content_fullscreen(&mut self, tab_id: u64, fullscreen: bool) {
+        if self.tabs.get(self.active).map(|tab| tab.id) != Some(tab_id)
+            || self.content_fullscreen == fullscreen
+        {
+            return;
+        }
+        self.content_fullscreen = fullscreen;
+        if let Some(window) = self.window.as_ref() {
+            let target = fullscreen.then(|| Fullscreen::Borderless(window.current_monitor()));
+            window.set_fullscreen(target);
+        }
+        self.resize_views();
     }
 }
 
@@ -912,6 +949,9 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
                 eprintln!("No se pudo buscar la actualización: {message}");
                 self.render_chrome();
             }
+            UserEvent::ContentFullscreenChanged { tab_id, fullscreen } => {
+                self.set_content_fullscreen(tab_id, fullscreen);
+            }
         }
     }
 
@@ -955,14 +995,47 @@ fn toolbar_bounds(window: &Window, downloads_panel_open: bool) -> Rect {
     }
 }
 
-fn content_bounds(window: &Window) -> Rect {
+fn content_bounds(window: &Window, fullscreen: bool) -> Rect {
     let size = window.inner_size();
-    let top = (TOOLBAR_HEIGHT_LOGICAL * window.scale_factor()).round() as u32;
+    let top = if fullscreen {
+        0
+    } else {
+        (TOOLBAR_HEIGHT_LOGICAL * window.scale_factor()).round() as u32
+    };
     let top = top.min(size.height);
     Rect {
         position: PhysicalPosition::new(0, top as i32).into(),
         size: PhysicalSize::new(size.width, size.height.saturating_sub(top)).into(),
     }
+}
+
+#[cfg(target_os = "windows")]
+fn attach_fullscreen_handler(
+    view: &WebView,
+    proxy: EventLoopProxy<UserEvent>,
+    tab_id: u64,
+) -> Result<()> {
+    use webview2_com::ContainsFullScreenElementChangedEventHandler;
+    use windows::core::BOOL;
+
+    let webview = view.webview();
+    let handler =
+        ContainsFullScreenElementChangedEventHandler::create(Box::new(move |sender, _| {
+            let Some(sender) = sender else {
+                return Ok(());
+            };
+            let mut contains = BOOL(0);
+            unsafe { sender.ContainsFullScreenElement(&mut contains)? };
+            let _ = proxy.send_event(UserEvent::ContentFullscreenChanged {
+                tab_id,
+                fullscreen: contains.as_bool(),
+            });
+            Ok(())
+        }));
+    unsafe {
+        webview.add_ContainsFullScreenElementChanged(&handler, &mut 0)?;
+    }
+    Ok(())
 }
 
 fn app_icon() -> Option<Icon> {
