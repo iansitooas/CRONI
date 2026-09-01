@@ -53,6 +53,10 @@ pub enum UserEvent {
         url: String,
         loading: bool,
     },
+    LocationChanged {
+        tab_id: u64,
+        url: String,
+    },
     TitleChanged {
         tab_id: u64,
         title: String,
@@ -295,8 +299,10 @@ impl BrowserApp {
         let view = builder
             .build_as_child(window)
             .with_context(|| format!("no se pudo abrir {url}"))?;
-        blocker::attach_native_protections(&view, self.blocker.clone(), page_url)
+        blocker::attach_native_protections(&view, self.blocker.clone(), page_url.clone())
             .context("no se pudieron activar las protecciones de red")?;
+        #[cfg(target_os = "windows")]
+        attach_location_changed_handler(&view, self.proxy.clone(), tab_id, page_url.clone())?;
         #[cfg(target_os = "windows")]
         downloads::attach_download_manager(
             &view,
@@ -911,6 +917,15 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
                     }
                 }
             }
+            UserEvent::LocationChanged { tab_id, url } => {
+                if let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == tab_id) {
+                    if tab.url != url {
+                        tab.url = url;
+                        self.persist_session();
+                        self.render_chrome();
+                    }
+                }
+            }
             UserEvent::TitleChanged { tab_id, title } => {
                 if let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == tab_id) {
                     tab.title = if title.trim().is_empty() {
@@ -1084,6 +1099,36 @@ fn attach_fullscreen_handler(
         }));
     unsafe {
         webview.add_ContainsFullScreenElementChanged(&handler, &mut 0)?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn attach_location_changed_handler(
+    view: &WebView,
+    proxy: EventLoopProxy<UserEvent>,
+    tab_id: u64,
+    page_url: Arc<RwLock<String>>,
+) -> Result<()> {
+    use webview2_com::{take_pwstr, SourceChangedEventHandler};
+    use windows::core::PWSTR;
+
+    let webview = view.webview();
+    let handler = SourceChangedEventHandler::create(Box::new(move |sender, _| {
+        let Some(sender) = sender else {
+            return Ok(());
+        };
+        let mut source = PWSTR::null();
+        unsafe { sender.Source(&mut source)? };
+        let url = take_pwstr(source);
+        if blocker::is_navigation_allowed(&url) {
+            *page_url.write().unwrap_or_else(|lock| lock.into_inner()) = url.clone();
+            let _ = proxy.send_event(UserEvent::LocationChanged { tab_id, url });
+        }
+        Ok(())
+    }));
+    unsafe {
+        webview.add_SourceChanged(&handler, &mut 0)?;
     }
     Ok(())
 }
