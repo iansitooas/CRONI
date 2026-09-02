@@ -43,7 +43,8 @@ use windows::{
 };
 
 #[cfg(target_os = "windows")]
-const FULLSCREEN_VIDEO_FIX_SCRIPT: &str = include_str!("../assets/fullscreen_video_fix.js");
+const WEBVIEW_COMPATIBILITY_ARGUMENTS: &str =
+    "--disable-gpu-compositing --disable-features=msWebOOUI,msPdfOOUI";
 
 #[derive(Debug)]
 pub enum UserEvent {
@@ -293,7 +294,7 @@ impl BrowserApp {
 
         #[cfg(target_os = "windows")]
         let builder = builder
-            .with_initialization_script(FULLSCREEN_VIDEO_FIX_SCRIPT)
+            .with_additional_browser_args(WEBVIEW_COMPATIBILITY_ARGUMENTS)
             .with_browser_extensions_enabled(false)
             .with_browser_accelerator_keys(false);
 

@@ -411,7 +411,7 @@ dependencies = [
 
 [[package]]
 name = "croni"
-version = "0.4.8"
+version = "0.4.9"
 dependencies = [
  "adblock",
  "anyhow",
