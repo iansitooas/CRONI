@@ -46,6 +46,9 @@ use windows::{
 const WEBVIEW_COMPATIBILITY_ARGUMENTS: &str =
     "--disable-gpu-compositing --disable-features=msWebOOUI,msPdfOOUI";
 
+#[cfg(target_os = "windows")]
+const PSEUDO_FULLSCREEN_SCRIPT: &str = include_str!("../assets/pseudo_fullscreen.js");
+
 #[derive(Debug)]
 pub enum UserEvent {
     ChromeCommand(String),
@@ -252,6 +255,7 @@ impl BrowserApp {
         let location_proxy = self.proxy.clone();
         let title_proxy = self.proxy.clone();
         let popup_proxy = self.proxy.clone();
+        let fullscreen_proxy = self.proxy.clone();
         let page_url = Arc::new(RwLock::new(url.clone()));
         let page_url_for_events = page_url.clone();
 
@@ -284,6 +288,17 @@ impl BrowserApp {
             .with_new_window_req_handler(move |url, _features| {
                 let _ = popup_proxy.send_event(UserEvent::OpenInNewTab(url));
                 NewWindowResponse::Deny
+            })
+            .with_ipc_handler(move |request| {
+                let Ok(message) = serde_json::from_str::<Value>(request.body()) else {
+                    return;
+                };
+                if message.get("type").and_then(Value::as_str) == Some("content_fullscreen") {
+                    if let Some(fullscreen) = message.get("fullscreen").and_then(Value::as_bool) {
+                        let _ = fullscreen_proxy
+                            .send_event(UserEvent::ContentFullscreenChanged { tab_id, fullscreen });
+                    }
+                }
             });
 
         let builder = if self.config.reduce_motion {
@@ -294,6 +309,7 @@ impl BrowserApp {
 
         #[cfg(target_os = "windows")]
         let builder = builder
+            .with_initialization_script(PSEUDO_FULLSCREEN_SCRIPT)
             .with_additional_browser_args(WEBVIEW_COMPATIBILITY_ARGUMENTS)
             .with_browser_extensions_enabled(false)
             .with_browser_accelerator_keys(false);
@@ -312,8 +328,6 @@ impl BrowserApp {
             self.next_download_id.clone(),
             self.download_operations.clone(),
         )?;
-        #[cfg(target_os = "windows")]
-        attach_fullscreen_handler(&view, self.proxy.clone(), tab_id)?;
         set_memory_level(&view, self.window_is_focused);
         self.tabs[self.active].loading = true;
         self.tabs[self.active].view = Some(view);
@@ -897,6 +911,12 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
                 url,
                 loading,
             } => {
+                if loading
+                    && self.content_fullscreen
+                    && self.tabs.get(self.active).map(|tab| tab.id) == Some(tab_id)
+                {
+                    self.set_content_fullscreen(tab_id, false);
+                }
                 if let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == tab_id) {
                     tab.url = url.clone();
                     tab.loading = loading;
@@ -1063,35 +1083,6 @@ fn content_bounds(window: &Window, fullscreen: bool) -> Rect {
         position: PhysicalPosition::new(0, top as i32).into(),
         size: PhysicalSize::new(size.width, size.height.saturating_sub(top)).into(),
     }
-}
-
-#[cfg(target_os = "windows")]
-fn attach_fullscreen_handler(
-    view: &WebView,
-    proxy: EventLoopProxy<UserEvent>,
-    tab_id: u64,
-) -> Result<()> {
-    use webview2_com::ContainsFullScreenElementChangedEventHandler;
-    use windows::core::BOOL;
-
-    let webview = view.webview();
-    let handler =
-        ContainsFullScreenElementChangedEventHandler::create(Box::new(move |sender, _| {
-            let Some(sender) = sender else {
-                return Ok(());
-            };
-            let mut contains = BOOL(0);
-            unsafe { sender.ContainsFullScreenElement(&mut contains)? };
-            let _ = proxy.send_event(UserEvent::ContentFullscreenChanged {
-                tab_id,
-                fullscreen: contains.as_bool(),
-            });
-            Ok(())
-        }));
-    unsafe {
-        webview.add_ContainsFullScreenElementChanged(&handler, &mut 0)?;
-    }
-    Ok(())
 }
 
 #[cfg(target_os = "windows")]
