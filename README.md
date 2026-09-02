@@ -2,6 +2,12 @@
 
 CRONI es un navegador de escritorio enfocado en reducir RAM. Está escrito en Rust y no incluye Electron ni empaqueta Chromium: usa el motor WebView2 instalado en Windows.
 
+## Descarga directa
+
+**[⬇ Descargar CRONI.exe](https://github.com/iansitooas/CRONI/releases/latest/download/CRONI.exe)**
+
+En Windows 10/11 normalmente basta con descargar ese archivo y abrirlo. El ZIP portable queda disponible como alternativa si también necesitas el instalador de recursos.
+
 ## Qué incluye
 
 - Barra de dirección y búsqueda, atrás, adelante, recarga e inicio.
@@ -38,13 +44,13 @@ Todas las pestañas comparten un `WebContext`, por lo que cookies, inicios de se
 
 ## Instalación rápida en Windows
 
-El ZIP publicado incluye `INSTALAR_RECURSOS.ps1`. Para preparar solamente lo necesario para ejecutar CRONI, abre PowerShell dentro de la carpeta descomprimida y usa:
+La opción más sencilla es descargar y abrir directamente [CRONI.exe](https://github.com/iansitooas/CRONI/releases/latest/download/CRONI.exe). Windows 10/11 normalmente ya incluye WebView2.
+
+Si el ejecutable no abre porque falta WebView2, descarga el ZIP portable. Incluye `INSTALAR_RECURSOS.ps1`; abre PowerShell dentro de la carpeta descomprimida y usa:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\INSTALAR_RECURSOS.ps1 -RuntimeOnly
 ```
-
-Windows 10/11 normalmente ya incluye WebView2 y, en ese caso, puedes abrir `CRONI.exe` directamente.
 
 ## Compilar en Windows
 
