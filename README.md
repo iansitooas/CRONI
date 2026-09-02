@@ -14,7 +14,7 @@ En Windows 10/11 normalmente basta con descargar el ejecutable y abrirlo. La ver
 
 - Barra de dirección y búsqueda, atrás, adelante, recarga e inicio.
 - Interfaz superior Win32 nativa en Windows: no usa un segundo WebView para dibujar pestañas, botones o menús.
-- Modo de video a ventana completa compatible con YouTube: simula la pantalla completa dentro de la página y evita activar la capa HTML5 de WebView2 que puede quedar totalmente negra.
+- Modo de video a ventana completa compatible con YouTube: simula la pantalla completa dentro de la página, evita activar la capa HTML5 de WebView2 y deja un margen imperceptible de 2 px para eludir un error confirmado de superposición de video en Windows 11.
 - Pestañas y marcadores persistentes.
 - Barra de accesos rápidos persistentes: incluye YouTube inicialmente y permite guardar o eliminar enlaces con un clic.
 - Registro por usuario como navegador disponible para HTTP/HTTPS y acceso directo a la pantalla oficial de Aplicaciones predeterminadas de Windows.
@@ -48,7 +48,7 @@ Todas las pestañas comparten un `WebContext`, por lo que cookies, inicios de se
 
 La opción más sencilla es descargar y abrir directamente [CRONI.exe](https://github.com/iansitooas/CRONI/releases/latest/download/CRONI.exe). Windows 10/11 normalmente ya incluye WebView2.
 
-Si el ejecutable no abre porque falta WebView2, descarga el ZIP portable. Incluye `INSTALAR_RECURSOS.ps1`; abre PowerShell dentro de la carpeta descomprimida y usa:
+Si el ejecutable no abre, muestra una pantalla negra o tiene una versión antigua de WebView2, descarga el ZIP portable. Incluye `INSTALAR_RECURSOS.ps1`; abre PowerShell dentro de la carpeta descomprimida, usa el siguiente comando y acepta el permiso de administrador de Windows:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\INSTALAR_RECURSOS.ps1 -RuntimeOnly

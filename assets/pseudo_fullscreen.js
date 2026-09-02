@@ -93,27 +93,31 @@
 
       [${marker}] {
         position: fixed !important;
-        inset: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
+        top: 2px !important;
+        right: 2px !important;
+        bottom: 2px !important;
+        left: 2px !important;
+        width: calc(100vw - 4px) !important;
+        height: calc(100vh - 4px) !important;
         max-width: none !important;
         max-height: none !important;
         margin: 0 !important;
+        overflow: hidden !important;
         transform: none !important;
         z-index: 2147483647 !important;
         background: #000 !important;
       }
 
       video[${marker}] {
-        inset: 2px !important;
+        inset: auto !important;
         width: calc(100vw - 4px) !important;
         height: calc(100vh - 4px) !important;
         object-fit: contain !important;
       }
 
       [${marker}] video {
-        max-width: calc(100% - 4px) !important;
-        max-height: calc(100% - 4px) !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
         object-fit: contain !important;
       }
     `;

@@ -44,7 +44,7 @@ use windows::{
 
 #[cfg(target_os = "windows")]
 const WEBVIEW_COMPATIBILITY_ARGUMENTS: &str =
-    "--disable-gpu-compositing --disable-features=msWebOOUI,msPdfOOUI";
+    "--disable-gpu-compositing --disable-direct-composition --disable-features=msWebOOUI,msPdfOOUI";
 
 #[cfg(target_os = "windows")]
 const PSEUDO_FULLSCREEN_SCRIPT: &str = include_str!("../assets/pseudo_fullscreen.js");

@@ -4,12 +4,12 @@
 
 1. Crea un repositorio público vacío en GitHub y sube este proyecto completo.
 2. Comprueba que la pestaña **Actions** esté habilitada.
-3. Confirma que la versión de `Cargo.toml` sea la que quieres publicar, por ejemplo `0.5.1`.
+3. Confirma que la versión de `Cargo.toml` sea la que quieres publicar, por ejemplo `0.5.2`.
 4. Crea y sube una etiqueta con la misma versión:
 
    ```powershell
-   git tag v0.5.1
-   git push origin v0.5.1
+   git tag v0.5.2
+   git push origin v0.5.2
    ```
 
 El flujo `.github/workflows/release.yml` ejecuta las pruebas, compila en Windows y crea una versión de GitHub con:

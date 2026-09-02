@@ -29,10 +29,11 @@ garantizar que todos los sitios o descargas sean seguros.
 
 No introduzcas contraseñas ni descargues archivos en páginas sospechosas.
 Comprueba siempre el dominio que aparece en la barra de direcciones.
-INSTALACION RAPIDA
+INSTALACION RAPIDA Y ACTUALIZACION DE WEBVIEW2
 ==================
 
 CRONI usa el WebView2 incluido normalmente en Windows 10/11. Si CRONI.exe no abre,
+los videos dejan la pantalla negra o quieres instalar la version mas reciente,
 haz clic derecho en INSTALAR_RECURSOS.ps1, elige "Ejecutar con PowerShell", o abre
 PowerShell en esta carpeta y ejecuta:
 
