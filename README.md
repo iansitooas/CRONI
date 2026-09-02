@@ -14,7 +14,7 @@ En Windows 10/11 normalmente basta con descargar el ejecutable y abrirlo. La ver
 
 - Barra de dirección y búsqueda, atrás, adelante, recarga e inicio.
 - Interfaz superior Win32 nativa en Windows: no usa un segundo WebView para dibujar pestañas, botones o menús.
-- Pantalla completa HTML5 compatible con reproductores como YouTube, con protección contra superficies de video negras de WebView2.
+- Pantalla completa HTML5 estable dentro de la ventana de CRONI: oculta toda la interfaz sin cambiar el modo de la ventana principal ni dejar dañada la superficie de WebView2.
 - Pestañas y marcadores persistentes.
 - Barra de accesos rápidos persistentes: incluye YouTube inicialmente y permite guardar o eliminar enlaces con un clic.
 - Registro por usuario como navegador disponible para HTTP/HTTPS y acceso directo a la pantalla oficial de Aplicaciones predeterminadas de Windows.

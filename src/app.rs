@@ -23,7 +23,7 @@ use winit::{
     dpi::LogicalSize,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy},
-    window::{Fullscreen, Icon, Window, WindowId},
+    window::{Icon, Window, WindowId},
 };
 use wry::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -834,11 +834,12 @@ impl BrowserApp {
             return;
         }
         self.content_fullscreen = fullscreen;
-        if let Some(window) = self.window.as_ref() {
-            let target = fullscreen.then(|| Fullscreen::Borderless(window.current_monitor()));
-            window.set_fullscreen(target);
-        }
         self.resize_views();
+        if !fullscreen {
+            if let Some(view) = self.tabs[self.active].view.as_ref() {
+                refresh_view_surface(view);
+            }
+        }
     }
 }
 
