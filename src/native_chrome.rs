@@ -28,14 +28,13 @@ use windows::{
                 GetWindowTextLengthW, GetWindowTextW, KillTimer, LoadCursorW, RegisterClassW,
                 SendMessageW, SetTimer, SetWindowLongPtrW, SetWindowPos, SetWindowTextW,
                 ShowWindow, TrackPopupMenu, CREATESTRUCTW, CS_DBLCLKS, CS_HREDRAW, CS_VREDRAW,
-                EC_LEFTMARGIN, EC_RIGHTMARGIN, EN_SETFOCUS, ES_AUTOHSCROLL, ES_CENTER,
-                GWLP_USERDATA, HMENU, IDC_ARROW, MF_CHECKED, MF_GRAYED, MF_POPUP, MF_SEPARATOR,
-                MF_STRING, MF_UNCHECKED, SWP_NOACTIVATE, SWP_SHOWWINDOW, SW_HIDE,
-                SW_SHOWNOACTIVATE, TPM_RETURNCMD, TPM_RIGHTBUTTON, WINDOW_EX_STYLE, WINDOW_STYLE,
-                WM_COMMAND, WM_CREATE, WM_CTLCOLOREDIT, WM_KEYDOWN, WM_LBUTTONDBLCLK,
-                WM_LBUTTONDOWN, WM_LBUTTONUP, WM_NCCREATE, WM_NCDESTROY, WM_PAINT, WM_SETFOCUS,
-                WM_SETFONT, WM_SIZE, WM_TIMER, WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_TABSTOP,
-                WS_VISIBLE,
+                EC_LEFTMARGIN, EC_RIGHTMARGIN, EN_SETFOCUS, ES_AUTOHSCROLL, GWLP_USERDATA, HMENU,
+                IDC_ARROW, MF_CHECKED, MF_GRAYED, MF_POPUP, MF_SEPARATOR, MF_STRING, MF_UNCHECKED,
+                SWP_NOACTIVATE, SWP_SHOWWINDOW, SW_HIDE, SW_SHOWNOACTIVATE, TPM_RETURNCMD,
+                TPM_RIGHTBUTTON, WINDOW_EX_STYLE, WINDOW_STYLE, WM_COMMAND, WM_CREATE,
+                WM_CTLCOLOREDIT, WM_KEYDOWN, WM_LBUTTONDBLCLK, WM_LBUTTONDOWN, WM_LBUTTONUP,
+                WM_NCCREATE, WM_NCDESTROY, WM_PAINT, WM_SETFOCUS, WM_SETFONT, WM_SIZE, WM_TIMER,
+                WNDCLASSW, WS_CHILD, WS_CLIPCHILDREN, WS_TABSTOP, WS_VISIBLE,
             },
         },
     },
@@ -218,10 +217,7 @@ impl NativeChrome {
                 WINDOW_EX_STYLE(0),
                 w!("EDIT"),
                 w!(""),
-                WS_CHILD
-                    | WS_VISIBLE
-                    | WS_TABSTOP
-                    | WINDOW_STYLE((ES_AUTOHSCROLL | ES_CENTER) as u32),
+                WS_CHILD | WS_VISIBLE | WS_TABSTOP | WINDOW_STYLE(ES_AUTOHSCROLL as u32),
                 0,
                 0,
                 100,
@@ -823,8 +819,9 @@ unsafe fn paint_navigation(
     );
     let edit_left = x + scaled(5, scale);
     let edit_right = (right - scaled(5, scale)).max(edit_left + scaled(100, scale));
-    let edit_top = y + scaled(1, scale);
-    let edit_height = (button - scaled(1, scale)).max(scaled(24, scale));
+    let vertical_text_offset = scaled(5, scale);
+    let edit_top = y + vertical_text_offset;
+    let edit_height = (button - vertical_text_offset).max(scaled(24, scale));
     fill(
         hdc,
         rect(edit_left, y, edit_right, y + button),
