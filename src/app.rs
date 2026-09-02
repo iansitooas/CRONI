@@ -43,7 +43,7 @@ use windows::{
 };
 
 #[cfg(target_os = "windows")]
-const FULLSCREEN_WEBVIEW_INSET: u32 = 3;
+const FULLSCREEN_VIDEO_FIX_SCRIPT: &str = include_str!("../assets/fullscreen_video_fix.js");
 
 #[derive(Debug)]
 pub enum UserEvent {
@@ -293,6 +293,7 @@ impl BrowserApp {
 
         #[cfg(target_os = "windows")]
         let builder = builder
+            .with_initialization_script(FULLSCREEN_VIDEO_FIX_SCRIPT)
             .with_browser_extensions_enabled(false)
             .with_browser_accelerator_keys(false);
 
@@ -1050,18 +1051,6 @@ fn toolbar_bounds(window: &Window, downloads_panel_open: bool) -> Rect {
 
 fn content_bounds(window: &Window, fullscreen: bool) -> Rect {
     let size = window.inner_size();
-    #[cfg(target_os = "windows")]
-    if fullscreen {
-        let inset = FULLSCREEN_WEBVIEW_INSET;
-        return Rect {
-            position: PhysicalPosition::new(inset as i32, inset as i32).into(),
-            size: PhysicalSize::new(
-                size.width.saturating_sub(inset * 2),
-                size.height.saturating_sub(inset * 2),
-            )
-            .into(),
-        };
-    }
     let top = if fullscreen {
         0
     } else {
