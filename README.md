@@ -6,7 +6,9 @@ CRONI es un navegador de escritorio enfocado en reducir RAM. Está escrito en Ru
 
 **[⬇ Descargar CRONI.exe](https://github.com/iansitooas/CRONI/releases/latest/download/CRONI.exe)**
 
-En Windows 10/11 normalmente basta con descargar ese archivo y abrirlo. El ZIP portable queda disponible como alternativa si también necesitas el instalador de recursos.
+**[📦 Descargar versión portable](https://github.com/iansitooas/CRONI/releases/latest/download/CRONI-PORTABLE-DESCARGA.zip)**
+
+En Windows 10/11 normalmente basta con descargar el ejecutable y abrirlo. La versión portable incluye también el instalador de recursos.
 
 ## Qué incluye
 

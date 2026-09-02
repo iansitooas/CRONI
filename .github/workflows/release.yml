@@ -83,5 +83,6 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           $directDownload = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:RELEASE_TAG/CRONI.exe"
-          $notes = "## Descarga fácil`n`n**[⬇ Descargar CRONI.exe]($directDownload)**`n`nDescárgalo y ábrelo. El ZIP portable es una alternativa para equipos que necesiten instalar WebView2.`n`nEl archivo CRONI.exe.sha256 es utilizado automáticamente por el actualizador."
+          $portableDownload = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:RELEASE_TAG/CRONI-PORTABLE-DESCARGA.zip"
+          $notes = "## Descarga fácil`n`n**[⬇ Descargar CRONI.exe]($directDownload)**`n`n**[📦 Descargar versión portable]($portableDownload)**`n`nDescarga el ejecutable y ábrelo. La versión portable incluye también el instalador de recursos.`n`nEl archivo CRONI.exe.sha256 es utilizado automáticamente por el actualizador."
           gh release create $env:RELEASE_TAG dist\CRONI.exe dist\CRONI-PORTABLE-DESCARGA.zip dist\CRONI.exe.sha256 --verify-tag --title "CRONI $env:RELEASE_TAG — DESCARGAR" --notes $notes
