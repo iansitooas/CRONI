@@ -1,6 +1,6 @@
 [package]
 name = "croni"
-version = "0.5.2"
+version = "0.5.6"
 edition = "2021"
 description = "CRONI, navegador de escritorio minimalista con descarte agresivo de pestañas"
 license = "MIT"
@@ -18,7 +18,7 @@ wry = "0.56.1"
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38.2"
-windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Networking_WinHttp", "Win32_System_LibraryLoader", "Win32_UI_Controls", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_WindowsAndMessaging"] }
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Networking_WinHttp", "Win32_System_Com", "Win32_System_LibraryLoader", "Win32_UI_Controls", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_UI_WindowsAndMessaging"] }
 
 [build-dependencies]
 winres = "0.1"

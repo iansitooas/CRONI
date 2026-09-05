@@ -95,6 +95,7 @@ struct OwnedState {
     ultra_light_mode: bool,
     reduce_motion: bool,
     pause_media_when_unfocused: bool,
+    video_compatibility_mode: bool,
     app_version: String,
     update_configured: bool,
     update_status: String,
@@ -128,6 +129,7 @@ impl OwnedState {
             ultra_light_mode: state.ultra_light_mode,
             reduce_motion: state.reduce_motion,
             pause_media_when_unfocused: state.pause_media_when_unfocused,
+            video_compatibility_mode: state.video_compatibility_mode,
             app_version: state.app_version.to_string(),
             update_configured: state.update_configured,
             update_status: state.update_status.to_string(),
@@ -323,7 +325,19 @@ impl NativeChrome {
     }
 
     pub fn set_visible(&self, visible: bool) {
+        let loading = self
+            .inner
+            .ui
+            .lock()
+            .unwrap_or_else(|lock| lock.into_inner())
+            .state
+            .loading;
         unsafe {
+            if visible && loading {
+                SetTimer(Some(self.inner.hwnd), SPINNER_TIMER, 180, None);
+            } else {
+                let _ = KillTimer(Some(self.inner.hwnd), SPINNER_TIMER);
+            }
             let _ = ShowWindow(
                 self.inner.hwnd,
                 if visible { SW_SHOWNOACTIVATE } else { SW_HIDE },
@@ -1100,6 +1114,18 @@ unsafe fn show_settings_menu(inner: &ChromeInner) {
                 MF_UNCHECKED
             },
         Action::Command("toggle_background_pause"),
+        &mut actions,
+    );
+    append_action(
+        menu,
+        "Video compatible sin GPU (reiniciar CRONI)",
+        MF_STRING
+            | if state.video_compatibility_mode {
+                MF_CHECKED
+            } else {
+                MF_UNCHECKED
+            },
+        Action::Command("toggle_video_compatibility"),
         &mut actions,
     );
     let filter_status = match state.adblock_status.as_str() {

@@ -23,7 +23,7 @@ use winit::{
     dpi::LogicalSize,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy},
-    window::{Icon, Window, WindowId},
+    window::{Fullscreen, Icon, Window, WindowId},
 };
 use wry::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -43,11 +43,9 @@ use windows::{
 };
 
 #[cfg(target_os = "windows")]
-const WEBVIEW_COMPATIBILITY_ARGUMENTS: &str =
-    "--disable-gpu-compositing --disable-direct-composition --disable-features=msWebOOUI,msPdfOOUI";
-
+const WEBVIEW_DEFAULT_ARGUMENTS: &str = "--disable-features=msWebOOUI,msPdfOOUI";
 #[cfg(target_os = "windows")]
-const PSEUDO_FULLSCREEN_SCRIPT: &str = include_str!("../assets/pseudo_fullscreen.js");
+const WEBVIEW_SOFTWARE_ARGUMENTS: &str = "--disable-gpu --disable-features=msWebOOUI,msPdfOOUI";
 
 #[derive(Debug)]
 pub enum UserEvent {
@@ -66,6 +64,10 @@ pub enum UserEvent {
         title: String,
     },
     OpenInNewTab(String),
+    #[cfg(target_os = "windows")]
+    ChooseDownloadDestination {
+        id: u64,
+    },
     DownloadStarted {
         id: u64,
         name: String,
@@ -115,6 +117,10 @@ pub struct BrowserApp {
     active: usize,
     next_tab_id: u64,
     window_is_focused: bool,
+    focus_loss_deadline: Option<Instant>,
+    // Every controller sharing the profile must use identical startup arguments.
+    #[cfg(target_os = "windows")]
+    video_compatibility_at_start: bool,
     content_fullscreen: bool,
     refresh_surface_after_load: Option<u64>,
     downloads_panel_open: bool,
@@ -126,6 +132,8 @@ pub struct BrowserApp {
     update_sha256: Option<String>,
     #[cfg(target_os = "windows")]
     download_operations: downloads::OperationMap,
+    #[cfg(target_os = "windows")]
+    pending_downloads: downloads::PendingDownloadMap,
     #[cfg(target_os = "windows")]
     next_download_id: downloads::DownloadIdCounter,
 }
@@ -172,6 +180,8 @@ impl BrowserApp {
 
         Ok(Self {
             proxy,
+            #[cfg(target_os = "windows")]
+            video_compatibility_at_start: config.video_compatibility_mode,
             config,
             context: WebContext::new(Some(data_dir)),
             window: None,
@@ -180,6 +190,7 @@ impl BrowserApp {
             active: 0,
             next_tab_id,
             window_is_focused: true,
+            focus_loss_deadline: None,
             content_fullscreen: false,
             refresh_surface_after_load: None,
             downloads_panel_open: false,
@@ -195,6 +206,8 @@ impl BrowserApp {
             update_sha256: None,
             #[cfg(target_os = "windows")]
             download_operations: downloads::new_operation_map(),
+            #[cfg(target_os = "windows")]
+            pending_downloads: downloads::new_pending_map(),
             #[cfg(target_os = "windows")]
             next_download_id: downloads::new_id_counter(next_download_id),
         })
@@ -255,7 +268,6 @@ impl BrowserApp {
         let location_proxy = self.proxy.clone();
         let title_proxy = self.proxy.clone();
         let popup_proxy = self.proxy.clone();
-        let fullscreen_proxy = self.proxy.clone();
         let page_url = Arc::new(RwLock::new(url.clone()));
         let page_url_for_events = page_url.clone();
 
@@ -269,8 +281,9 @@ impl BrowserApp {
             .with_general_autofill_enabled(false)
             .with_devtools(cfg!(debug_assertions))
             .with_initialization_script(blocker::INITIALIZATION_SCRIPT)
+            .with_initialization_script(downloads::INITIALIZATION_SCRIPT)
             .with_navigation_handler(|target| {
-                blocker::is_navigation_allowed(&target) && !blocker::is_blocked_url(&target)
+                blocker::is_webview_navigation_allowed(&target) && !blocker::is_blocked_url(&target)
             })
             .with_on_page_load_handler(move |event, url| {
                 *page_url_for_events
@@ -288,17 +301,6 @@ impl BrowserApp {
             .with_new_window_req_handler(move |url, _features| {
                 let _ = popup_proxy.send_event(UserEvent::OpenInNewTab(url));
                 NewWindowResponse::Deny
-            })
-            .with_ipc_handler(move |request| {
-                let Ok(message) = serde_json::from_str::<Value>(request.body()) else {
-                    return;
-                };
-                if message.get("type").and_then(Value::as_str) == Some("content_fullscreen") {
-                    if let Some(fullscreen) = message.get("fullscreen").and_then(Value::as_bool) {
-                        let _ = fullscreen_proxy
-                            .send_event(UserEvent::ContentFullscreenChanged { tab_id, fullscreen });
-                    }
-                }
             });
 
         let builder = if self.config.reduce_motion {
@@ -309,8 +311,11 @@ impl BrowserApp {
 
         #[cfg(target_os = "windows")]
         let builder = builder
-            .with_initialization_script(PSEUDO_FULLSCREEN_SCRIPT)
-            .with_additional_browser_args(WEBVIEW_COMPATIBILITY_ARGUMENTS)
+            .with_additional_browser_args(if self.video_compatibility_at_start {
+                WEBVIEW_SOFTWARE_ARGUMENTS
+            } else {
+                WEBVIEW_DEFAULT_ARGUMENTS
+            })
             .with_browser_extensions_enabled(false)
             .with_browser_accelerator_keys(false);
 
@@ -320,13 +325,15 @@ impl BrowserApp {
         blocker::attach_native_protections(&view, self.blocker.clone(), page_url.clone())
             .context("no se pudieron activar las protecciones de red")?;
         #[cfg(target_os = "windows")]
+        attach_fullscreen_changed_handler(&view, self.proxy.clone(), tab_id)?;
+        #[cfg(target_os = "windows")]
         attach_location_changed_handler(&view, self.proxy.clone(), tab_id, page_url.clone())?;
         #[cfg(target_os = "windows")]
         downloads::attach_download_manager(
             &view,
             self.proxy.clone(),
             self.next_download_id.clone(),
-            self.download_operations.clone(),
+            self.pending_downloads.clone(),
         )?;
         set_memory_level(&view, self.window_is_focused);
         self.tabs[self.active].loading = true;
@@ -386,6 +393,10 @@ impl BrowserApp {
             eprintln!("Error al restaurar pestaña: {error:#}");
         }
         if let Some(view) = self.tabs[self.active].view.as_ref() {
+            // Hidden tabs keep their previous dimensions until activated.
+            if let Some(window) = self.window.as_ref() {
+                let _ = view.set_bounds(content_bounds(window, self.content_fullscreen));
+            }
             let _ = view.set_visible(true);
             let _ = view.focus();
             set_memory_level(view, self.window_is_focused);
@@ -398,6 +409,10 @@ impl BrowserApp {
             return;
         };
         let was_active = index == self.active;
+        if was_active && self.content_fullscreen {
+            // Restore the host before dropping the controller that owns fullscreen.
+            self.set_content_fullscreen(id, false);
+        }
         self.tabs.remove(index);
 
         if self.tabs.is_empty() {
@@ -520,6 +535,11 @@ impl BrowserApp {
             }
             "toggle_background_pause" => {
                 self.config.pause_media_when_unfocused = !self.config.pause_media_when_unfocused;
+                self.persist_session();
+                self.render_chrome();
+            }
+            "toggle_video_compatibility" => {
+                self.config.video_compatibility_mode = !self.config.video_compatibility_mode;
                 self.persist_session();
                 self.render_chrome();
             }
@@ -743,6 +763,11 @@ impl BrowserApp {
     }
 
     fn render_chrome(&self) {
+        // The hidden toolbar does not need cloned tab/download lists or repaints.
+        // Rebuild it from current state when leaving fullscreen.
+        if self.content_fullscreen {
+            return;
+        }
         let Some(chrome) = self.chrome.as_ref() else {
             return;
         };
@@ -779,6 +804,7 @@ impl BrowserApp {
             ultra_light_mode: self.config.ultra_light_mode,
             reduce_motion: self.config.reduce_motion,
             pause_media_when_unfocused: self.config.pause_media_when_unfocused,
+            video_compatibility_mode: self.config.video_compatibility_mode,
             app_version: updater::APP_VERSION,
             update_configured: updater::is_configured(),
             update_status: &self.update_status,
@@ -813,7 +839,8 @@ impl BrowserApp {
             }
         }
         let bounds = content_bounds(window, self.content_fullscreen);
-        for tab in &self.tabs {
+        // Fullscreen must not grow the backing surfaces of every hidden tab.
+        if let Some(tab) = self.tabs.get(self.active) {
             if let Some(view) = tab.view.as_ref() {
                 let _ = view.set_bounds(bounds);
                 #[cfg(target_os = "windows")]
@@ -825,7 +852,12 @@ impl BrowserApp {
     }
 
     fn persist_session(&mut self) {
-        self.config.restore_urls = self.tabs.iter().map(|tab| tab.url.clone()).collect();
+        self.config.restore_urls = self
+            .tabs
+            .iter()
+            .filter(|tab| blocker::is_navigation_allowed(&tab.url))
+            .map(|tab| tab.url.clone())
+            .collect();
         self.config.downloads = self
             .downloads
             .iter()
@@ -848,11 +880,19 @@ impl BrowserApp {
             return;
         }
         self.content_fullscreen = fullscreen;
+        if let Some(window) = self.window.as_ref() {
+            window.set_fullscreen(if fullscreen {
+                Some(Fullscreen::Borderless(None))
+            } else {
+                None
+            });
+        }
         self.resize_views();
         if !fullscreen {
             if let Some(view) = self.tabs[self.active].view.as_ref() {
                 refresh_view_surface(view);
             }
+            self.render_chrome();
         }
     }
 }
@@ -887,14 +927,15 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
             }
             WindowEvent::Focused(focused) => {
                 self.window_is_focused = focused;
-                for (index, tab) in self.tabs.iter().enumerate() {
-                    if let Some(view) = tab.view.as_ref() {
-                        set_memory_level(view, focused && index == self.active);
-                        if !focused
-                            && !self.content_fullscreen
-                            && self.config.pause_media_when_unfocused
-                        {
-                            let _ = view.evaluate_script(blocker::PAUSE_MEDIA_SCRIPT);
+                self.focus_loss_deadline = if focused {
+                    None
+                } else {
+                    Some(Instant::now() + Duration::from_millis(750))
+                };
+                if focused {
+                    for (index, tab) in self.tabs.iter().enumerate() {
+                        if let Some(view) = tab.view.as_ref() {
+                            set_memory_level(view, index == self.active);
                         }
                     }
                 }
@@ -960,6 +1001,22 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
                 }
             }
             UserEvent::OpenInNewTab(url) => self.add_tab(&url, true),
+            #[cfg(target_os = "windows")]
+            UserEvent::ChooseDownloadDestination { id } => {
+                if let Some(window) = self.window.as_ref() {
+                    if let Err(error) = downloads::choose_destination(
+                        id,
+                        &self.pending_downloads,
+                        &self.download_operations,
+                        &self.proxy,
+                        window,
+                    ) {
+                        eprintln!("No se pudo elegir el destino de descarga: {error:#}");
+                    }
+                } else {
+                    self.pending_downloads.borrow_mut().remove(&id);
+                }
+            }
             UserEvent::DownloadStarted {
                 id,
                 name,
@@ -1032,8 +1089,34 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if self
+            .focus_loss_deadline
+            .is_some_and(|deadline| Instant::now() >= deadline)
+        {
+            self.focus_loss_deadline = None;
+            // Child WebViews, menus and fullscreen transitions can move keyboard
+            // focus without moving the app out of the foreground.
+            if self.window.as_ref().is_some_and(window_is_foreground) {
+                self.window_is_focused = true;
+            }
+            if !self.window_is_focused && !self.content_fullscreen {
+                for tab in &self.tabs {
+                    if let Some(view) = tab.view.as_ref() {
+                        set_memory_level(view, false);
+                        if self.config.pause_media_when_unfocused {
+                            let _ = view.evaluate_script(blocker::PAUSE_MEDIA_SCRIPT);
+                        }
+                    }
+                }
+            }
+        }
         self.discard_expired_tabs(false);
-        event_loop.set_control_flow(match self.next_discard_deadline() {
+        let deadline = self
+            .next_discard_deadline()
+            .into_iter()
+            .chain(self.focus_loss_deadline)
+            .min();
+        event_loop.set_control_flow(match deadline {
             Some(deadline) => ControlFlow::WaitUntil(deadline),
             None => ControlFlow::Wait,
         });
@@ -1044,6 +1127,11 @@ impl ApplicationHandler<UserEvent> for BrowserApp {
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        #[cfg(target_os = "windows")]
+        {
+            let pending = std::mem::take(&mut *self.pending_downloads.borrow_mut());
+            drop(pending);
+        }
         self.persist_session();
     }
 }
@@ -1116,13 +1204,60 @@ fn attach_location_changed_handler(
 }
 
 #[cfg(target_os = "windows")]
+fn attach_fullscreen_changed_handler(
+    view: &WebView,
+    proxy: EventLoopProxy<UserEvent>,
+    tab_id: u64,
+) -> Result<()> {
+    use webview2_com::ContainsFullScreenElementChangedEventHandler;
+    use windows::core::BOOL;
+
+    let webview = view.webview();
+    let handler =
+        ContainsFullScreenElementChangedEventHandler::create(Box::new(move |sender, _| {
+            let Some(sender) = sender else {
+                return Ok(());
+            };
+            let mut contains_fullscreen = BOOL::default();
+            unsafe { sender.ContainsFullScreenElement(&mut contains_fullscreen)? };
+            let _ = proxy.send_event(UserEvent::ContentFullscreenChanged {
+                tab_id,
+                fullscreen: contains_fullscreen.as_bool(),
+            });
+            Ok(())
+        }));
+    unsafe {
+        webview.add_ContainsFullScreenElementChanged(&handler, &mut 0)?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
 fn refresh_view_surface(view: &WebView) {
-    let _ = view.set_visible(false);
     unsafe {
         let _ = view.controller().NotifyParentWindowPositionChanged();
     }
-    let _ = view.set_visible(true);
     let _ = view.focus();
+}
+
+#[cfg(target_os = "windows")]
+fn window_is_foreground(window: &Window) -> bool {
+    use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    let Ok(handle) = window.window_handle() else {
+        return false;
+    };
+    let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+        return false;
+    };
+    unsafe {
+        windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow().0 as isize
+            == handle.hwnd.get()
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn window_is_foreground(window: &Window) -> bool {
+    window.has_focus()
 }
 
 #[cfg(not(target_os = "windows"))]

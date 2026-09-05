@@ -10,6 +10,13 @@ Cómo usarlo en otra computadora:
 No necesita instalación. Requiere Windows 10 u 11 y Microsoft Edge
 WebView2 Runtime, que normalmente ya viene instalado con Windows.
 
+Si un equipo sigue mostrando video negro: abre el menú de ajustes, activa
+"Video compatible sin GPU (reiniciar CRONI)", cierra todas las ventanas de
+CRONI y vuelve a abrirlo. Es una alternativa para problemas gráficos y puede
+consumir más CPU. No desactiva las protecciones del navegador.
+
+Cada descarga permite elegir carpeta y nombre, sin restricciones de extensión.
+
 Descarga CRONI únicamente desde la sección Releases de su repositorio oficial.
 Si Windows muestra una advertencia, comprueba el origen y el publicador antes
 de decidir si lo ejecutas. No desactives SmartScreen.

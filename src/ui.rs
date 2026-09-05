@@ -21,6 +21,7 @@ pub struct ChromeState<'a> {
     pub ultra_light_mode: bool,
     pub reduce_motion: bool,
     pub pause_media_when_unfocused: bool,
+    pub video_compatibility_mode: bool,
     pub app_version: &'static str,
     pub update_configured: bool,
     pub update_status: &'a str,

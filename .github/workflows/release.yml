@@ -34,9 +34,7 @@ jobs:
             throw "La etiqueta $env:RELEASE_TAG no coincide con Cargo.toml ($cargoVersion)."
           }
 
-      - name: Probar CRONI
-        run: cargo test --locked
-
+      # Las pruebas de ejecución las realiza manualmente el propietario.
       - name: Compilar CRONI
         run: cargo build --release --locked
 

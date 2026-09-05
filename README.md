@@ -14,11 +14,11 @@ En Windows 10/11 normalmente basta con descargar el ejecutable y abrirlo. La ver
 
 - Barra de dirección y búsqueda, atrás, adelante, recarga e inicio.
 - Interfaz superior Win32 nativa en Windows: no usa un segundo WebView para dibujar pestañas, botones o menús.
-- Modo de video a ventana completa compatible con YouTube: simula la pantalla completa dentro de la página, evita activar la capa HTML5 de WebView2 y deja un margen imperceptible de 2 px para eludir un error confirmado de superposición de video en Windows 11.
+- Pantalla completa nativa: el motor gestiona el reproductor y CRONI adapta la ventana al monitor; Escape restaura la interfaz sin recargar el video.
 - Pestañas y marcadores persistentes.
 - Barra de accesos rápidos persistentes: incluye YouTube inicialmente y permite guardar o eliminar enlaces con un clic.
 - Registro por usuario como navegador disponible para HTTP/HTTPS y acceso directo a la pantalla oficial de Aplicaciones predeterminadas de Windows.
-- Gestor de descargas integrado con progreso, historial, cancelación y accesos para abrir el archivo o mostrarlo en su carpeta.
+- Gestor de descargas con «Guardar como» para cualquier extensión, incluidos archivos generados con enlaces `download` de tipo `blob:`/`data:`. Permite elegir carpeta y nombre, confirmar reemplazos, ver progreso, cancelar y mostrar el archivo en su carpeta.
 - Icono propio de CRONI en la ventana, la barra de tareas y el ejecutable de Windows.
 - Actualización en segundo plano desde GitHub Releases, verificación SHA-256 y reemplazo del ejecutable al reiniciar.
 - Restauración de la sesión anterior.

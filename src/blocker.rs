@@ -216,6 +216,13 @@ pub fn is_navigation_allowed(raw: &str) -> bool {
     matches!(url.scheme(), "http" | "https") || (url.scheme() == "about" && url.path() == "blank")
 }
 
+// Renderer-generated downloads must retain their creating document's context.
+// This does not allow these schemes as command-line URLs or restored sessions.
+pub fn is_webview_navigation_allowed(raw: &str) -> bool {
+    is_navigation_allowed(raw)
+        || Url::parse(raw).is_ok_and(|url| matches!(url.scheme(), "blob" | "data"))
+}
+
 fn host_from_url(raw: &str) -> Option<String> {
     Url::parse(raw)
         .ok()?
