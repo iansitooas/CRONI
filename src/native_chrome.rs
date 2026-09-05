@@ -1019,7 +1019,14 @@ unsafe fn draw_label(
     color: COLORREF,
     flags: windows::Win32::Graphics::Gdi::DRAW_TEXT_FORMAT,
 ) {
+    // Icon-only buttons have no text. An empty Vec supplies a dangling pointer
+    // to USER32; do not call DrawTextW for an empty label.
+    if label.is_empty() {
+        return;
+    }
     let mut text = label.encode_utf16().collect::<Vec<_>>();
+    // Keep backing storage NUL-terminated as well as providing an explicit count.
+    text.push(0);
     SetTextColor(hdc, color);
     DrawTextW(hdc, &mut text, &mut bounds, flags);
 }
