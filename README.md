@@ -18,7 +18,7 @@ En Windows 10/11 normalmente basta con descargar el ejecutable y abrirlo. La ver
 - Pestañas y marcadores persistentes.
 - Barra de accesos rápidos persistentes: incluye YouTube inicialmente y permite guardar o eliminar enlaces con un clic.
 - Registro por usuario como navegador disponible para HTTP/HTTPS y acceso directo a la pantalla oficial de Aplicaciones predeterminadas de Windows.
-- Gestor de descargas con «Guardar como» para cualquier extensión, incluidos archivos generados con enlaces `download` de tipo `blob:`/`data:`. Permite elegir carpeta y nombre, confirmar reemplazos, ver progreso, cancelar y mostrar el archivo en su carpeta.
+- Gestor de descargas con «Guardar como» para cualquier extensión, incluidos archivos generados con enlaces `download` de tipo `blob:`/`data:`. Permite elegir carpeta y nombre, confirmar reemplazos, ver progreso, cancelar y mostrar el archivo en su carpeta. El menú también incluye «Guardar página o documento como…», usando el selector nativo de WebView2.
 - Icono propio de CRONI en la ventana, la barra de tareas y el ejecutable de Windows.
 - Actualización en segundo plano desde GitHub Releases, verificación SHA-256 y reemplazo del ejecutable al reiniciar.
 - Restauración de la sesión anterior.

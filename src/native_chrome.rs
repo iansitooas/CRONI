@@ -1051,6 +1051,25 @@ unsafe fn show_settings_menu(inner: &ChromeInner) {
         Action::Command("set_default_browser"),
         &mut actions,
     );
+    append_action(
+        menu,
+        "Guardar página o documento como…",
+        MF_STRING,
+        Action::Command("save_page"),
+        &mut actions,
+    );
+    append_action(
+        menu,
+        "Bloquear anuncios en este sitio (por defecto activo)",
+        MF_STRING
+            | if state.adblock_enabled {
+                MF_CHECKED
+            } else {
+                MF_UNCHECKED
+            },
+        Action::Command("toggle_adblock"),
+        &mut actions,
+    );
     append_separator(menu);
     if state.update_ready {
         append_action(

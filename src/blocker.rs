@@ -54,7 +54,8 @@ const FILTER_SOURCES: &[&str] = &[
 const FILTER_UPDATE_INTERVAL: Duration = Duration::from_secs(48 * 60 * 60);
 const MAX_FILTER_BYTES: usize = 12 * 1024 * 1024;
 
-pub const INITIALIZATION_SCRIPT: &str = include_str!("../assets/content_filter.js");
+pub const INITIALIZATION_SCRIPT: &str = include_str!("../assets/media_lifecycle.js");
+const CONTENT_FILTER_SCRIPT: &str = include_str!("../assets/content_filter.js");
 
 pub const PERFORMANCE_SCRIPT: &str = r#"
 (() => {
@@ -172,7 +173,7 @@ impl BlockerManager {
 
     pub fn cosmetic_script(&self, raw: &str) -> Option<String> {
         if !self.is_enabled_for_url(raw) {
-            return None;
+            return Some("window.__croniSetContentBlocking?.(false); document.getElementById('croni-site-filters')?.remove();".into());
         }
         let engine = self.engine.read().ok()?;
         let resources = engine.url_cosmetic_resources(raw);
@@ -180,15 +181,16 @@ impl BlockerManager {
         selectors.sort_unstable();
         selectors.truncate(2048);
         if selectors.is_empty() {
-            return None;
+            return Some(CONTENT_FILTER_SCRIPT.into());
         }
         let css = format!("{}{{display:none!important}}", selectors.join(","));
         if css.len() > 256 * 1024 {
-            return None;
+            return Some(CONTENT_FILTER_SCRIPT.into());
         }
         let css = serde_json::to_string(&css).ok()?;
         Some(format!(
-            r#"(() => {{
+            r#"{CONTENT_FILTER_SCRIPT}
+        (() => {{
             let style = document.getElementById('croni-site-filters');
             if (!style) {{ style = document.createElement('style'); style.id = 'croni-site-filters'; (document.head || document.documentElement).appendChild(style); }}
             style.textContent = {css};
@@ -303,9 +305,10 @@ pub fn attach_native_protections(
 ) -> anyhow::Result<()> {
     use anyhow::Context;
     use webview2_com::{
-        take_pwstr, Microsoft::Web::WebView2::Win32::*, WebResourceRequestedEventHandler,
+        take_pwstr, DOMContentLoadedEventHandler, Microsoft::Web::WebView2::Win32::*,
+        WebResourceRequestedEventHandler,
     };
-    use windows::core::{HSTRING, PWSTR};
+    use windows::core::{Interface, HSTRING, PWSTR};
     use wry::WebViewExtWindows;
 
     let webview = view.webview();
@@ -319,6 +322,28 @@ pub fn attach_native_protections(
     let all = HSTRING::from("*");
     unsafe {
         webview.AddWebResourceRequestedFilter(&all, COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL)?;
+    }
+
+    // Read the current native policy on each document, including redirects and
+    // reloads. No stale per-WebView copy of the site's exception list.
+    let document_manager = manager.clone();
+    let documents: ICoreWebView2_2 = webview.cast()?;
+    unsafe {
+        documents.add_DOMContentLoaded(
+            &DOMContentLoadedEventHandler::create(Box::new(move |sender, _| {
+                let Some(sender) = sender else {
+                    return Ok(());
+                };
+                let mut source = PWSTR::null();
+                sender.Source(&mut source)?;
+                let source = take_pwstr(source);
+                if let Some(script) = document_manager.cosmetic_script(&source) {
+                    sender.ExecuteScript(&HSTRING::from(script), None)?;
+                }
+                Ok(())
+            })),
+            &mut 0,
+        )?;
     }
 
     let handler = WebResourceRequestedEventHandler::create(Box::new(move |_, args| {

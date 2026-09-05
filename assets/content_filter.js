@@ -1,21 +1,11 @@
 (() => {
   'use strict';
 
-  const pauseMedia = root => {
-    const scope = root && root.querySelectorAll ? root : document;
-    if (root && root.matches && root.matches('audio, video')) {
-      try { root.pause(); root.removeAttribute('autoplay'); } catch (_) {}
-    }
-    scope.querySelectorAll('audio, video').forEach(media => {
-      try { media.pause(); media.removeAttribute('autoplay'); } catch (_) {}
-    });
-  };
-
-  // Prevents audio from a previous YouTube SPA page or an ad from surviving navigation.
-  window.addEventListener('pagehide', () => pauseMedia(document), true);
-  window.addEventListener('beforeunload', () => pauseMedia(document), true);
-  window.addEventListener('popstate', () => pauseMedia(document), true);
-  document.addEventListener('yt-navigate-start', () => pauseMedia(document), true);
+  if (typeof window.__croniSetContentBlocking === 'function') {
+    window.__croniSetContentBlocking(true);
+    return;
+  }
+  let enabled = true;
   const youtubeHost = location.hostname === 'youtube.com' || location.hostname.endsWith('.youtube.com');
   const skipSelectors = '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, [id^="skip-button"] button';
   const youtubeAdSelectors = 'ytd-display-ad-renderer, ytd-promoted-sparkles-web-renderer, ytd-action-companion-ad-renderer, .ytp-ad-overlay-container';
@@ -24,7 +14,7 @@
     root.querySelectorAll(selectors).forEach(visit);
   };
   const handleYouTubeAds = root => {
-    if (!youtubeHost) return;
+    if (!enabled || !youtubeHost) return;
     visitMatches(root, skipSelectors, button => {
       try { button.click(); } catch (_) {}
     });
@@ -43,7 +33,7 @@
     'iframe[src*="doubleclick.net"]', 'iframe[src*="googlesyndication.com"]'
   ].join(',');
   const clean = root => {
-    if (!root || !root.querySelectorAll) return;
+    if (!enabled || !root || !root.querySelectorAll) return;
     if (root.matches && root.matches(selectors)) {
       root.remove();
       return;
@@ -65,7 +55,7 @@
   });
   let observing = false;
   const syncObserver = () => {
-    if (document.hidden) {
+    if (!enabled || document.hidden) {
       observer.disconnect();
       observing = false;
       return;
@@ -74,6 +64,11 @@
     clean(document);
     observer.observe(document.documentElement, { childList: true, subtree: true });
     observing = true;
+  };
+  window.__croniSetContentBlocking = value => {
+    enabled = Boolean(value);
+    if (!enabled) document.getElementById('croni-site-filters')?.remove();
+    syncObserver();
   };
   document.addEventListener('visibilitychange', syncObserver);
   window.addEventListener('pagehide', () => {

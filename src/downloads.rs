@@ -56,7 +56,8 @@ mod platform {
     };
     use webview2_com::{
         take_pwstr, BytesReceivedChangedEventHandler, DownloadStartingEventHandler,
-        Microsoft::Web::WebView2::Win32::*, StateChangedEventHandler,
+        Microsoft::Web::WebView2::Win32::*, SaveAsUIShowingEventHandler,
+        ShowSaveAsUICompletedHandler, StateChangedEventHandler,
     };
     use windows::{
         core::{w, Interface, HRESULT, HSTRING, PWSTR},
@@ -147,6 +148,35 @@ mod platform {
         }));
         unsafe { webview.add_DownloadStarting(&handler, &mut 0) }
             .context("no se pudo activar el seguimiento de descargas")?;
+        // Save As (documents, built-in viewers and context menus) is a separate
+        // WebView2 route. Keep its native destination picker, never silent-save.
+        // Older runtimes keep their default dialog without requiring this API.
+        if let Ok(save_ui) = view.webview().cast::<ICoreWebView2_25>() {
+            unsafe {
+                save_ui.add_SaveAsUIShowing(
+                    &SaveAsUIShowingEventHandler::create(Box::new(|_, args| {
+                        if let Some(args) = args {
+                            args.SetSuppressDefaultDialog(false)?;
+                        }
+                        Ok(())
+                    })),
+                    &mut 0,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn save_page_as(view: &WebView) -> Result<()> {
+        let webview: ICoreWebView2_25 = view
+            .webview()
+            .cast()
+            .context("actualiza WebView2 para guardar documentos desde este menú")?;
+        unsafe {
+            webview.ShowSaveAsUI(&ShowSaveAsUICompletedHandler::create(Box::new(
+                |result, _| result,
+            )))?;
+        }
         Ok(())
     }
 

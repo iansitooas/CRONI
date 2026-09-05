@@ -270,6 +270,8 @@ impl BrowserApp {
         let popup_proxy = self.proxy.clone();
         let page_url = Arc::new(RwLock::new(url.clone()));
         let page_url_for_events = page_url.clone();
+        let navigation_source = page_url.clone();
+        let navigation_blocker = self.blocker.clone();
 
         let builder = WebViewBuilder::new_with_web_context(&mut self.context)
             .with_url(&url)
@@ -282,8 +284,14 @@ impl BrowserApp {
             .with_devtools(cfg!(debug_assertions))
             .with_initialization_script(blocker::INITIALIZATION_SCRIPT)
             .with_initialization_script(downloads::INITIALIZATION_SCRIPT)
-            .with_navigation_handler(|target| {
-                blocker::is_webview_navigation_allowed(&target) && !blocker::is_blocked_url(&target)
+            .with_navigation_handler(move |target| {
+                let source = navigation_source
+                    .read()
+                    .unwrap_or_else(|lock| lock.into_inner());
+                blocker::is_webview_navigation_allowed(&target)
+                    && (!navigation_blocker.is_enabled_for_url(&source)
+                        || !navigation_blocker.is_enabled_for_url(&target)
+                        || !blocker::is_blocked_url(&target))
             })
             .with_on_page_load_handler(move |event, url| {
                 *page_url_for_events
@@ -554,6 +562,13 @@ impl BrowserApp {
                         self.config.adblock_disabled_hosts.push(host);
                     }
                     self.persist_session();
+                    for tab in &self.tabs {
+                        if let (Some(view), Some(script)) =
+                            (tab.view.as_ref(), self.blocker.cosmetic_script(&tab.url))
+                        {
+                            let _ = view.evaluate_script(&script);
+                        }
+                    }
                     if let Some(view) = self.tabs[self.active].view.as_ref() {
                         let _ = view.reload();
                     }
@@ -563,6 +578,14 @@ impl BrowserApp {
             "cancel_download" => {
                 if let Some(id) = command.get("id").and_then(Value::as_u64) {
                     self.cancel_download(id);
+                }
+            }
+            #[cfg(target_os = "windows")]
+            "save_page" => {
+                if let Some(view) = self.tabs[self.active].view.as_ref() {
+                    if let Err(error) = downloads::save_page_as(view) {
+                        eprintln!("No se pudo abrir Guardar como: {error}");
+                    }
                 }
             }
             "open_download" => {
