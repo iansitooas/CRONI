@@ -91,7 +91,7 @@ Esta entrega es **Windows-first**. Antes de ejecutarla en Linux hay que añadir 
 
 ## Configuración
 
-El botón **⇩** abre las descargas. El escudo muestra el bloqueo por sitio y el número de solicitudes detenidas. El menú **☰** contiene marcadores, estado de actualización, modo ultraligero y movimiento reducido. `home_url` y `search_url` se pueden cambiar en `%LOCALAPPDATA%\CRONI\config.json` después del primer cierre. La plantilla de búsqueda debe contener `{query}`.
+El botón **⇩** abre las descargas. El botón «Bloqueador» no muestra contadores: un escudo verde con marca indica que está activo y un escudo gris tachado que está desactivado para ese sitio. Pulsa para cambiarlo. El menú **☰** contiene marcadores, estado de actualización, modo ultraligero y movimiento reducido. `home_url` y `search_url` se pueden cambiar en `%LOCALAPPDATA%\CRONI\config.json` después del primer cierre. La plantilla de búsqueda debe contener `{query}`.
 
 ## Alcance realista
 

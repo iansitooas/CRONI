@@ -11,11 +11,12 @@ use windows::{
     Win32::{
         Foundation::{COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
         Graphics::Gdi::{
-            BeginPaint, CreateFontW, CreateSolidBrush, DeleteObject, DrawTextW, EndPaint, FillRect,
-            InvalidateRect, SelectObject, SetBkColor, SetBkMode, SetTextColor, CLEARTYPE_QUALITY,
-            CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_PITCH, DT_CENTER, DT_END_ELLIPSIS,
-            DT_LEFT, DT_NOPREFIX, DT_SINGLELINE, DT_VCENTER, FF_DONTCARE, FW_NORMAL, HBRUSH, HDC,
-            HFONT, HGDIOBJ, OUT_DEFAULT_PRECIS, PAINTSTRUCT, TRANSPARENT,
+            BeginPaint, CreateFontW, CreatePen, CreateSolidBrush, DeleteObject, DrawTextW,
+            EndPaint, FillRect, InvalidateRect, Polyline, SelectObject, SetBkColor, SetBkMode,
+            SetTextColor, CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_PITCH,
+            DT_CENTER, DT_END_ELLIPSIS, DT_LEFT, DT_NOPREFIX, DT_SINGLELINE, DT_VCENTER,
+            FF_DONTCARE, FW_NORMAL, HBRUSH, HDC, HFONT, HGDIOBJ, OUT_DEFAULT_PRECIS, PAINTSTRUCT,
+            PS_SOLID, TRANSPARENT,
         },
         System::LibraryLoader::GetModuleHandleW,
         UI::{
@@ -89,7 +90,6 @@ struct OwnedState {
     discard_after_minutes: u64,
     maximized: bool,
     loading: bool,
-    blocked_count: u64,
     adblock_enabled: bool,
     adblock_status: String,
     ultra_light_mode: bool,
@@ -123,7 +123,6 @@ impl OwnedState {
             discard_after_minutes: state.discard_after_minutes,
             maximized: state.maximized,
             loading: state.loading,
-            blocked_count: state.blocked_count,
             adblock_enabled: state.adblock_enabled,
             adblock_status: state.adblock_status.to_string(),
             ultra_light_mode: state.ultra_light_mode,
@@ -816,20 +815,45 @@ unsafe fn paint_navigation(
             hits,
         );
     }
-    let shield_width = scaled(58, scale);
+    let shield_width = scaled(128, scale);
     let shield_rect = take_right(&mut right, shield_width, gap, y, button);
     draw_button(
         hdc,
         shield_rect,
-        &format!("◇ {}", state.blocked_count.min(999)),
+        "",
         state.adblock_enabled,
         if state.adblock_enabled {
-            rgb(112, 167, 255)
+            rgb(143, 227, 159)
         } else {
             rgb(150, 154, 164)
         },
         Action::Command("toggle_adblock"),
         hits,
+    );
+    let shield_color = if state.adblock_enabled {
+        rgb(143, 227, 159)
+    } else {
+        rgb(174, 178, 188)
+    };
+    draw_shield(
+        hdc,
+        shield_rect.left + scaled(8, scale),
+        shield_rect.top + scaled(6, scale),
+        scale,
+        state.adblock_enabled,
+        shield_color,
+    );
+    draw_label(
+        hdc,
+        rect(
+            shield_rect.left + scaled(35, scale),
+            shield_rect.top,
+            shield_rect.right - scaled(5, scale),
+            shield_rect.bottom,
+        ),
+        "Bloqueador",
+        shield_color,
+        DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,
     );
     let edit_left = x + scaled(5, scale);
     let edit_right = (right - scaled(5, scale)).max(edit_left + scaled(100, scale));
@@ -929,6 +953,38 @@ unsafe fn paint_shortcuts(
         Action::Command("add_shortcut"),
         hits,
     );
+}
+
+unsafe fn draw_shield(hdc: HDC, x: i32, y: i32, scale: f64, enabled: bool, color: COLORREF) {
+    // Vector outline: no dependency on an installed font's shield glyph.
+    let pen = CreatePen(PS_SOLID, scaled(2, scale).max(1), color);
+    if pen.0.is_null() {
+        return;
+    }
+    let previous = SelectObject(hdc, HGDIOBJ(pen.0));
+    let point = |px, py| POINT {
+        x: x + scaled(px, scale),
+        y: y + scaled(py, scale),
+    };
+    let _ = Polyline(
+        hdc,
+        &[
+            point(10, 0),
+            point(19, 4),
+            point(17, 14),
+            point(10, 21),
+            point(3, 14),
+            point(1, 4),
+            point(10, 0),
+        ],
+    );
+    if enabled {
+        let _ = Polyline(hdc, &[point(5, 10), point(9, 14), point(15, 7)]);
+    } else {
+        let _ = Polyline(hdc, &[point(3, 18), point(17, 3)]);
+    }
+    SelectObject(hdc, previous);
+    let _ = DeleteObject(HGDIOBJ(pen.0));
 }
 
 unsafe fn draw_button(
